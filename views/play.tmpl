@@ -1,0 +1,57 @@
+
+{{ define "playpage"}}
+<script>
+$(document).ready (function() {
+
+counter = makecounter()
+
+$("button").click(function(){
+
+  Value = $("#newIDx").val();
+  $.post("/play",
+  {
+    value: Value,
+    csrf_token: {{.CSRFToken}}
+  },
+  function(data, status){
+    //create a new paragraph and set its ID
+    //this is for the input
+    var newP = document.createElement("p");
+    newP.innerHTML = Value;
+    count = counter();
+    oldID = "newID" + String(count - 1); //point to the back link
+    nextID = "newID" + count;
+    $(newP).attr("id", nextID);
+    // alert("One:\noldID"+oldID+"\nnextID"+nextID); //for debugging
+    oldID = "#"+oldID;
+    $(oldID).append(newP);
+
+    //create another paragraph and set its ID
+    anotherP = document.createElement("p");
+    anotherP.innerHTML = data;
+    count = counter();
+    oldID = "newID" + String(count - 1); //point to the back link
+    nextID = "newID" + count;
+    $(anotherP).attr("id", nextID)
+    oldID = "#"+oldID
+    // alert("Two:\noldID"+oldID+"\nnextID"+nextID); //for debugging
+    $(oldID).append(anotherP);
+    // alert(data + "\nStatus: " + status+"\noldID"+oldID+"\nnextID"+nextID);
+    $("#newIDx").val("") //clear the message window
+    nextID = "";
+    oldID = "";
+  });
+
+});
+
+});
+
+function makecounter(){
+  var n = 1;
+  return function(){
+    return n++
+  };
+};
+</script>
+
+{{ end }}

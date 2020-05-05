@@ -1,0 +1,26 @@
+{{define "signuppage"}}
+
+<form action="/signup" method="POST">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+<p> Please sign up</p>
+    <div class="form-group">
+      <label for="nameInput">Name</label>
+      <small id="namedHelpBlock" class="form-text text-muted">{{.Form.Errors.name }}</small>
+      <input type="text" name="name" class="form-control" id="nameInput" aria-describedby="textlHelp">
+    </div>
+    <div class="form-group">
+      <label for="emailInput">Email address</label>
+      <small id="namedHelpBlock" class="form-text text-muted">{{.Form.Errors.email }}</small>
+      <input type="email" class="form-control" id="emailInput" aria-describedby="emailHelp" name="email">
+      <small id="emailHelp" class="form-text text-muted">We'll never share your email with anyone else.</small>
+  </div>
+  <div class="form-group">
+    <label for="passwordInput">Password</label>
+    <small id="namedHelpBlock" class="form-text text-muted">{{.Form.Errors.password }}</small>
+    <input type="password" class="form-control" id="passwordInput" name="password">
+  </div>
+  <button type="submit" class="btn btn-primary">Signup</button>
+</form>
+
+{{end}}
