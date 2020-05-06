@@ -122,13 +122,7 @@ func (st *sT) playHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	value, ok := r.Form["value"]
 	if ok {
-		chatValue := st.chatConnection(value[0])
-		// sliceValue := strings.Split(value[0], " ")
-		// for i, j := 0, len(sliceValue)-1; i < j; i, j = i+1, j-1 {
-		// 	sliceValue[i], sliceValue[j] = sliceValue[j], sliceValue[i]
-		// }
-		// newvalue := strings.Join(sliceValue, " ")
-		// w.Write([]byte(newvalue))
+		chatValue := st.chatConnection(value[0], "forChat", "fromChat")
 		w.Write(chatValue)
 	}
 }
@@ -141,12 +135,7 @@ func (st *sT) playMatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	value, ok := r.Form["value"]
 	if ok {
-		matValue := st.matConnection(value[0])
-		// sliceLen := len(strings.Split(value[0], " "))
-		// for i := 0; i < sliceLen; i++ {
-		// matValue += "mat "
-		// }
-		// w.Write([]byte(matValue))
+		matValue := st.chatConnection(value[0], "forMat", "fromMat")
 		w.Write(matValue)
 	}
 }

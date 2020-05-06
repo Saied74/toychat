@@ -95,9 +95,11 @@ func (st *sT) render(w http.ResponseWriter, r *http.Request, name string) {
 	buf.WriteTo(w)
 }
 
-func (st *sT) matConnection(matValue string) []byte {
+func (st *sT) chatConnection(matValue, forCM, fromCM string) []byte {
 	var err error
-	var m = &nats.Msg{}
+	// var m = &nats.Msg{
+	// 	Data: []byte{},
+	// }
 
 	nc1, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
@@ -105,52 +107,32 @@ func (st *sT) matConnection(matValue string) []byte {
 	}
 	defer nc1.Close()
 
-	nc2, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		st.errorLog.Println("Error from onnection", err)
-	}
-	defer nc2.Close()
+	// nc2, err := nats.Connect(nats.DefaultURL)
+	// if err != nil {
+	// 	st.errorLog.Println("Error from onnection", err)
+	// }
+	// defer nc2.Close()
 
-	nc2.Publish("forMat", []byte(matValue))
-
-	sub, err := nc1.SubscribeSync("fromMat")
+	// nc2.Publish(forCM, []byte(matValue))
+	msg, err := nc1.Request(forCM, []byte(matValue), 2*time.Second)
 	if err != nil {
-		st.errorLog.Println("Error from Sub Sync: ", err)
+		st.errorLog.Printf("%s request did not complete %v", forCM, err)
+		return []byte{}
 	}
-	m, err = sub.NextMsg(20 * time.Hour)
-	if err != nil {
-		st.errorLog.Println("Error from next message, timed out: ", err)
-	}
-	st.infoLog.Printf("Message from the far side: %s\n", string(m.Data))
-	return m.Data
+	return msg.Data
 }
 
-func (st *sT) chatConnection(matValue string) []byte {
-	var err error
-	var m = &nats.Msg{}
-
-	nc1, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		st.errorLog.Println("Error from onnection", err)
-	}
-	defer nc1.Close()
-
-	nc2, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		st.errorLog.Println("Error from onnection", err)
-	}
-	defer nc2.Close()
-
-	nc2.Publish("forChat", []byte(matValue))
-
-	sub, err := nc1.SubscribeSync("fromChat")
-	if err != nil {
-		st.errorLog.Println("Error from Sub Sync: ", err)
-	}
-	m, err = sub.NextMsg(20 * time.Hour)
-	if err != nil {
-		st.errorLog.Println("Error from next message, timed out: ", err)
-	}
-	st.infoLog.Printf("Message from the far side: %s\n", string(m.Data))
-	return m.Data
-}
+// sub, err := nc1.SubscribeSync(fromCM)
+// if err != nil {
+// 	st.errorLog.Println("Error from Sub Sync: ", err)
+// }
+// 	m, err = sub.NextMsg(20 * time.Hour)
+// 	if err != nil {
+// 		st.errorLog.Println("Error from next message, timed out: ", err)
+// 	}
+// 	if m != nil {
+// 		st.infoLog.Printf("Message from the far side: %s\n", string(m.Data))
+// 		// return m.Data
+// 	}
+// 	return []byte{}
+// }

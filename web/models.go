@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/gob"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -33,7 +36,33 @@ type user struct {
 	Active         bool
 }
 
+//ExchData for data exchange in gob format
+type ExchData struct {
+	ID             int
+	Name           string
+	Email          string
+	Password       string
+	Created        time.Time
+	Active         bool
+	HashedPassword []byte
+	Authenticated  bool
+	Action         string //authenticate, insert, and getuser are permitted actions
+	Err            error
+}
+
 func (m *userModel) insertUser(name, email, password string) error {
+	// exchData := ExchData{
+	// 	Name: name,
+	// 	Email: email,
+	// 	Password: password,
+	// 	Action: "insert",
+	// }
+	//
+	// sendData, err := exchData.toGob()
+	// if err != nil {
+	// 	return ExchData{}, fmt.Errorf("user did not gob %v", err)
+	// }
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return err //note we are not returning any words so we can check for the error
@@ -90,4 +119,14 @@ func (m *userModel) getUser(id int) (*user, error) {
 		return nil, err
 	}
 	return u, nil
+}
+
+func (e *ExchData) toGob() ([]byte, error) {
+	b := &bytes.Buffer{}
+	enc := gob.NewEncoder(b)
+	err := enc.Encode(*e)
+	if err != nil {
+		return []byte{}, fmt.Errorf("failed gob Encode %v", err)
+	}
+	return b.Bytes(), nil
 }
