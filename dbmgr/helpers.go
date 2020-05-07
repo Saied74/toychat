@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	// "toychat/pkg/broker"
+	// "toychat/pkg/broker"
+	// "github.com/Saied74/toychat/pkg/broker"
 )
 
 func getInfoLogger(out io.Writer) func() *log.Logger {
@@ -68,7 +71,7 @@ func (app *App) processDBRequest(data []byte) (*ExchData, error) {
 		exchData.encodeErr(err)
 		return &exchData, fmt.Errorf("command not implemented")
 	}
-	return &exchData, fmt.Errorf("fell off the bottom")
+	// return &exchData, fmt.Errorf("fell off the bottom")
 }
 
 func (e *ExchData) toGob() ([]byte, error) {
@@ -92,18 +95,18 @@ func (e *ExchData) fromGob(g []byte) error {
 	return nil
 }
 
-func (e *ExchData) pullUser() *user {
-	newUser := user{
-		ID:             e.ID,
-		Name:           e.Name,
-		Email:          e.Email,
-		HashedPassword: e.HashedPassword,
-		Created:        e.Created,
-		Active:         e.Active,
-	}
-	return &newUser
-}
-
+// func (e *ExchData) pullUser() *user {
+// 	newUser := user{
+// 		ID:             e.ID,
+// 		Name:           e.Name,
+// 		Email:          e.Email,
+// 		HashedPassword: e.HashedPassword,
+// 		Created:        e.Created,
+// 		Active:         e.Active,
+// 	}
+// 	return &newUser
+// }
+//
 func (e *ExchData) pushUser(u *user) {
 	e.ID = u.ID
 	e.Name = u.Name

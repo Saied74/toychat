@@ -17,7 +17,7 @@ type App struct {
 	users    *userModel
 }
 
-//ExchData is the structure for exchanging data over the nats message broker
+// ExchData is the structure for exchanging data over the nats message broker
 type ExchData struct {
 	ID             int
 	Name           string
@@ -32,16 +32,16 @@ type ExchData struct {
 	Err            string
 }
 
-func (e *ExchData) String(msg string) {
-	log.Printf("Start: %s\n", msg)
-	log.Printf("ID: %d\n", e.ID)
-	log.Printf("Name: %s\n", e.Name)
-	log.Printf("Email: %s\n", e.Email)
-	log.Printf("Active: %v\n", e.Active)
-	log.Printf("Action: %s\n", e.Action)
-	log.Printf("ErrType: %v\n", e.ErrType)
-	log.Printf("Err: %s\n", e.Err)
-}
+// func (e *ExchData) String(msg string) {
+// 	log.Printf("Start: %s\n", msg)
+// 	log.Printf("ID: %d\n", e.ID)
+// 	log.Printf("Name: %s\n", e.Name)
+// 	log.Printf("Email: %s\n", e.Email)
+// 	log.Printf("Active: %v\n", e.Active)
+// 	log.Printf("Action: %s\n", e.Action)
+// 	log.Printf("ErrType: %v\n", e.ErrType)
+// 	log.Printf("Err: %s\n", e.Err)
+// }
 
 func main() {
 	var err error
