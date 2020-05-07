@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/justinas/nosurf"
+	"github.com/saied74/toychat/pkg/broker"
 )
 
 func (st *sT) logRequest(next http.Handler) http.Handler {
@@ -65,7 +66,7 @@ func (st *sT) authenticate(next http.Handler) http.Handler {
 		}
 		usr, err := st.getUserR(st.sessionManager.GetInt(r.Context(),
 			authenticatedUserID))
-		if errors.Is(err, errNoRecord) || !usr.Active {
+		if errors.Is(err, broker.ErrNoRecord) || !usr.Active {
 			st.sessionManager.Remove(r.Context(), authenticatedUserID)
 			next.ServeHTTP(w, r)
 			return

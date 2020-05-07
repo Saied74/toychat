@@ -7,32 +7,13 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/saied74/toychat/pkg/broker"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type userModel struct {
 	dB *sql.DB
 }
-
-type errMsg int
-
-const (
-	noErr         errMsg = iota //no err
-	errZero                     //simple error
-	noRecord                    //errNoRecord
-	invalidCreds                //errInvalidCredentials
-	duplicateMail               //errDuplicateEmail
-)
-
-var (
-	errNoRecord = errors.New("models: no matching record found")
-	// Add a new ErrInvalidCredentials error. We'll use this later if a user
-	// tries to login with an incorrect email address or password.
-	errInvalidCredentials = errors.New("models: invalid credentials")
-	// Add a new ErrDuplicateEmail error. We'll use this later if a user
-	// tries to signup with an email address that's already in use.
-	errDuplicateEmail = errors.New("models: duplicate email")
-)
 
 type user struct {
 	ID             int
@@ -56,7 +37,7 @@ func (m *userModel) insertUser(name, email, password string) error {
 		if errors.As(err, &mySQLError) {
 			if mySQLError.Number == 1062 &&
 				strings.Contains(mySQLError.Message, "users_uc_email") {
-				return errDuplicateEmail
+				return broker.ErrDuplicateEmail
 			}
 		}
 		return err
@@ -73,29 +54,29 @@ func (m *userModel) authenticateUser(email, password string) (int, error) {
 	err := row.Scan(&id, &hashedPassword)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, errInvalidCredentials
+			return 0, broker.ErrInvalidCredentials
 		}
 		return 0, err
 	}
 	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
 	if err != nil {
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-			return 0, errInvalidCredentials
+			return 0, broker.ErrInvalidCredentials
 		}
 		return 0, err
 	}
 	return id, nil
 }
 
-func (m *userModel) getUser(id int) (*user, error) {
-	var u = &user{}
+func (m *userModel) getUser(id int) (*broker.ExchData, error) {
+	var u = &broker.ExchData{}
 
 	stmt := "SELECT id, name, email, created, active FROM users WHERE id = ?"
 	row := m.dB.QueryRow(stmt, id)
 	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Created, &u.Active)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errNoRecord
+			return nil, broker.ErrNoRecord
 		}
 		return nil, err
 	}

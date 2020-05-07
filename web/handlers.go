@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"net/http"
+
+	"github.com/saied74/toychat/pkg/broker"
 )
 
 // TODO: in general, these handlers are weak with respect to transport error
@@ -31,7 +33,7 @@ func (st *sT) loginHandler(w http.ResponseWriter, r *http.Request) {
 		id, err := st.authenticateUserR(st.td.Form.getField("email"),
 			st.td.Form.getField("password"))
 		if err != nil {
-			if errors.Is(err, errInvalidCredentials) { //|| errors.Is(err, errNoRecord)
+			if errors.Is(err, broker.ErrInvalidCredentials) {
 				st.td.Form.Errors.addError("generic", "Email or Password is incorrect")
 				st.render(w, r, login)
 			} else {
@@ -83,7 +85,7 @@ func (st *sT) signupHandler(w http.ResponseWriter, r *http.Request) {
 			Form.getField("password"))
 		if err != nil {
 			st.errorLog.Printf("Fatal Error %v", err)
-			if errors.Is(err, errDuplicateEmail) {
+			if errors.Is(err, broker.ErrDuplicateEmail) {
 				Form.Errors.addError("email", "Address is already in use")
 				st.render(w, r, signup)
 			} else {

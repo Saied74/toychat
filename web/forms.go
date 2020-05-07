@@ -11,8 +11,6 @@ import (
 
 type errOrs map[string]string
 
-// TODO: might want to change this to a map
-
 //formData is for rendering the longin screen
 type formData struct {
 	Fields url.Values

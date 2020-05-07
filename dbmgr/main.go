@@ -17,32 +17,6 @@ type App struct {
 	users    *userModel
 }
 
-// ExchData is the structure for exchanging data over the nats message broker
-type ExchData struct {
-	ID             int
-	Name           string
-	Email          string
-	Password       string
-	Created        time.Time
-	Active         bool
-	HashedPassword []byte
-	Authenticated  bool
-	Action         string //authenticate, insert, and getuser are permitted actions
-	ErrType        errMsg
-	Err            string
-}
-
-// func (e *ExchData) String(msg string) {
-// 	log.Printf("Start: %s\n", msg)
-// 	log.Printf("ID: %d\n", e.ID)
-// 	log.Printf("Name: %s\n", e.Name)
-// 	log.Printf("Email: %s\n", e.Email)
-// 	log.Printf("Active: %v\n", e.Active)
-// 	log.Printf("Action: %s\n", e.Action)
-// 	log.Printf("ErrType: %v\n", e.ErrType)
-// 	log.Printf("Err: %s\n", e.Err)
-// }
-
 func main() {
 	var err error
 	dsn := "toy:f00lish@/toychat?parseTime=true"
@@ -78,7 +52,7 @@ func main() {
 		if err != nil {
 			app.errorLog.Printf("processing DB request failed %v", err)
 		}
-		g, err := exchData.toGob()
+		g, err := exchData.ToGob()
 		if err != nil {
 			app.errorLog.Printf("did not go to Gob %v", err)
 			nc1.Publish(msg.Reply, []byte{})
