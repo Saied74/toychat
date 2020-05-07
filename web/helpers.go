@@ -69,7 +69,7 @@ func (st *sT) addDefaultData(td *templateData, r *http.Request) (*templateData, 
 	td.LoggedIn = st.isAuthenticated(r)
 	id := st.sessionManager.GetInt(r.Context(), authenticatedUserID)
 	if td.LoggedIn {
-		usr, err := st.users.getUser(id)
+		usr, err := st.getUserR(id)
 		if err != nil {
 			return nil, err
 		}
@@ -97,42 +97,17 @@ func (st *sT) render(w http.ResponseWriter, r *http.Request, name string) {
 
 func (st *sT) chatConnection(matValue, forCM, fromCM string) []byte {
 	var err error
-	// var m = &nats.Msg{
-	// 	Data: []byte{},
-	// }
 
 	nc1, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
-		st.errorLog.Println("Error from onnection", err)
+		st.errorLog.Printf("in chatConnection connecting error %v", err)
 	}
 	defer nc1.Close()
-
-	// nc2, err := nats.Connect(nats.DefaultURL)
-	// if err != nil {
-	// 	st.errorLog.Println("Error from onnection", err)
-	// }
-	// defer nc2.Close()
-
-	// nc2.Publish(forCM, []byte(matValue))
 	msg, err := nc1.Request(forCM, []byte(matValue), 2*time.Second)
 	if err != nil {
-		st.errorLog.Printf("%s request did not complete %v", forCM, err)
+		st.errorLog.Printf("in chatConnection %s request did not complete %v",
+			forCM, err)
 		return []byte{}
 	}
 	return msg.Data
 }
-
-// sub, err := nc1.SubscribeSync(fromCM)
-// if err != nil {
-// 	st.errorLog.Println("Error from Sub Sync: ", err)
-// }
-// 	m, err = sub.NextMsg(20 * time.Hour)
-// 	if err != nil {
-// 		st.errorLog.Println("Error from next message, timed out: ", err)
-// 	}
-// 	if m != nil {
-// 		st.infoLog.Printf("Message from the far side: %s\n", string(m.Data))
-// 		// return m.Data
-// 	}
-// 	return []byte{}
-// }

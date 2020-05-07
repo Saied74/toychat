@@ -6,11 +6,8 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"strings"
+	"log"
 	"time"
-
-	"github.com/go-sql-driver/mysql"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type userModel struct {
@@ -47,78 +44,69 @@ type ExchData struct {
 	HashedPassword []byte
 	Authenticated  bool
 	Action         string //authenticate, insert, and getuser are permitted actions
-	Err            error
+	ErrType        errMsg
+	Err            string
 }
 
-func (m *userModel) insertUser(name, email, password string) error {
-	// exchData := ExchData{
-	// 	Name: name,
-	// 	Email: email,
-	// 	Password: password,
-	// 	Action: "insert",
-	// }
-	//
-	// sendData, err := exchData.toGob()
-	// if err != nil {
-	// 	return ExchData{}, fmt.Errorf("user did not gob %v", err)
-	// }
+func (e *ExchData) String(msg string) {
+	log.Printf("Start: %s\n", msg)
+	log.Printf("ID: %d\n", e.ID)
+	log.Printf("Name: %s\n", e.Name)
+	log.Printf("Email: %s\n", e.Email)
+	log.Printf("Active: %v\n", e.Active)
+	log.Printf("Action: %s\n", e.Action)
+	log.Printf("ErrType: %v\n", e.ErrType)
+	log.Printf("Err: %s\n", e.Err)
+}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	if err != nil {
-		return err //note we are not returning any words so we can check for the error
+func (st *sT) insertUserR(name, email, password string) error {
+	// var err error
+	exchData := ExchData{
+		Name:     name,
+		Email:    email,
+		Password: password,
+		Action:   "insert",
 	}
-	stmt := `INSERT INTO users (name, email, hashed_password, created) VALUES(?, ?, ?, UTC_TIMESTAMP())`
-
-	_, err = m.dB.Exec(stmt, name, email, string(hashedPassword))
+	sendData, err := exchData.toGob()
 	if err != nil {
-		var mySQLError *mysql.MySQLError
-		if errors.As(err, &mySQLError) {
-			if mySQLError.Number == 1062 &&
-				strings.Contains(mySQLError.Message, "users_uc_email") {
-				return errDuplicateEmail
-			}
-		}
 		return err
 	}
-	return nil
+	answer := st.chatConnection(string(sendData), "forDB", "")
+	exchData.fromGob(answer)
+
+	return exchData.decodeErr()
+
 }
 
-func (m *userModel) authenticateUser(email, password string) (int, error) {
-	var id int
-	var hashedPassword []byte
-
-	stmt := "SELECT id, hashed_password FROM users WHERE email = ? AND active = TRUE"
-	row := m.dB.QueryRow(stmt, email)
-	err := row.Scan(&id, &hashedPassword)
+func (st *sT) authenticateUserR(email, password string) (int, error) {
+	exchData := ExchData{
+		Email:    email,
+		Password: password,
+		Action:   "authenticate",
+	}
+	sendData, err := exchData.toGob()
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, errInvalidCredentials
-		}
 		return 0, err
 	}
-	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
-	if err != nil {
-		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-			return 0, errInvalidCredentials
-		}
-		return 0, err
-	}
-	return id, nil
+	answer := st.chatConnection(string(sendData), "forDB", "")
+	exchData.fromGob(answer)
+	return exchData.ID, exchData.decodeErr()
 }
 
-func (m *userModel) getUser(id int) (*user, error) {
-	var u = &user{}
-
-	stmt := "SELECT id, name, email, created, active FROM users WHERE id = ?"
-	row := m.dB.QueryRow(stmt, id)
-	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Created, &u.Active)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errNoRecord
-		}
-		return nil, err
+func (st *sT) getUserR(id int) (*user, error) {
+	exchData := ExchData{
+		ID:     id,
+		Action: "getuser",
 	}
-	return u, nil
+
+	sendData, err := exchData.toGob()
+	if err != nil {
+		return &user{}, err
+	}
+	answer := st.chatConnection(string(sendData), "forDB", "")
+	exchData.fromGob(answer)
+
+	return exchData.pullUser(), exchData.decodeErr()
 }
 
 func (e *ExchData) toGob() ([]byte, error) {
@@ -129,4 +117,46 @@ func (e *ExchData) toGob() ([]byte, error) {
 		return []byte{}, fmt.Errorf("failed gob Encode %v", err)
 	}
 	return b.Bytes(), nil
+}
+
+func (e *ExchData) fromGob(g []byte) error {
+	b := &bytes.Buffer{}
+	b.Write(g)
+	dec := gob.NewDecoder(b)
+	err := dec.Decode(e)
+	if err != nil {
+		return fmt.Errorf("failed screen gob decode %v", err)
+	}
+	return nil
+}
+
+func (e *ExchData) pullUser() *user {
+	newUser := user{
+		ID:             e.ID,
+		Name:           e.Name,
+		Email:          e.Email,
+		HashedPassword: e.HashedPassword,
+		Created:        e.Created,
+		Active:         e.Active,
+	}
+	return &newUser
+}
+
+func (e *ExchData) decodeErr() error {
+	switch e.ErrType {
+	case noErr:
+		return nil
+	case errZero:
+		if e.Err == "" {
+			return errNoRecord
+		}
+		return fmt.Errorf(e.Err)
+	case noRecord:
+		return errNoRecord
+	case invalidCreds:
+		return errInvalidCredentials
+	case duplicateMail:
+		return errDuplicateEmail
+	}
+	return fmt.Errorf("error decoder failed %d", int(e.ErrType))
 }

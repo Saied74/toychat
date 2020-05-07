@@ -63,7 +63,7 @@ func (st *sT) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		usr, err := st.users.getUser(st.sessionManager.GetInt(r.Context(),
+		usr, err := st.getUserR(st.sessionManager.GetInt(r.Context(),
 			authenticatedUserID))
 		if errors.Is(err, errNoRecord) || !usr.Active {
 			st.sessionManager.Remove(r.Context(), authenticatedUserID)

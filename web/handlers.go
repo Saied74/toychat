@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// TODO: in general, these handlers are weak with respect to transport error
 func (st *sT) homeHandler(w http.ResponseWriter, r *http.Request) {
 	st.render(w, r, home)
 }
@@ -27,10 +28,10 @@ func (st *sT) loginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.td.Form = st.newForm(r.PostForm, r)
-		id, err := st.users.authenticateUser(st.td.Form.getField("email"),
+		id, err := st.authenticateUserR(st.td.Form.getField("email"),
 			st.td.Form.getField("password"))
 		if err != nil {
-			if errors.Is(err, errInvalidCredentials) {
+			if errors.Is(err, errInvalidCredentials) { //|| errors.Is(err, errNoRecord)
 				st.td.Form.Errors.addError("generic", "Email or Password is incorrect")
 				st.render(w, r, login)
 			} else {
@@ -73,14 +74,12 @@ func (st *sT) signupHandler(w http.ResponseWriter, r *http.Request) {
 		Form.maxLength("email", 255)
 		Form.matchPattern("email", emailRX)
 		Form.minLength("password", 10)
-		st.infoLog.Printf("\nname %s \nemail %s \npassword %s \n",
-			Form.getField("name"), Form.getField("email"), Form.getField("password"))
 
 		if !Form.valid() {
 			st.render(w, r, signup)
 			return
 		}
-		err = st.users.insertUser(Form.getField("name"), Form.getField("email"),
+		err = st.insertUserR(Form.getField("name"), Form.getField("email"),
 			Form.getField("password"))
 		if err != nil {
 			st.errorLog.Printf("Fatal Error %v", err)

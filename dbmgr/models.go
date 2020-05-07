@@ -14,6 +14,16 @@ type userModel struct {
 	dB *sql.DB
 }
 
+type errMsg int
+
+const (
+	noErr         errMsg = iota //no err
+	errZero                     //simple error
+	noRecord                    //errNoRecord
+	invalidCreds                //errInvalidCredentials
+	duplicateMail               //errDuplicateEmail
+)
+
 var (
 	errNoRecord = errors.New("models: no matching record found")
 	// Add a new ErrInvalidCredentials error. We'll use this later if a user

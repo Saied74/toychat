@@ -28,3 +28,13 @@ var allTmplFiles = map[string][]string{
 
 var serverKey = "../certs/https-server.key"
 var serverCrt = "../certs/https-server.crt"
+
+type errMsg int
+
+const (
+	noErr         errMsg = iota //no error
+	errZero                     //simple error
+	noRecord                    //errNoRecord
+	invalidCreds                //errInvalidCredentials
+	duplicateMail               //errDuplicateEmail
+)

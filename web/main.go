@@ -86,7 +86,6 @@ func main() {
 	}
 
 	st.infoLog.Printf("Starting server on %s", *ipAddress)
-
 	err = srv.ListenAndServeTLS(serverCrt, serverKey)
 	st.errorLog.Fatal(err)
 }

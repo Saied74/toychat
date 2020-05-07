@@ -28,7 +28,19 @@ type ExchData struct {
 	HashedPassword []byte
 	Authenticated  bool
 	Action         string //authenticate, insert, and getuser are permitted actions
-	Err            error
+	ErrType        errMsg
+	Err            string
+}
+
+func (e *ExchData) String(msg string) {
+	log.Printf("Start: %s\n", msg)
+	log.Printf("ID: %d\n", e.ID)
+	log.Printf("Name: %s\n", e.Name)
+	log.Printf("Email: %s\n", e.Email)
+	log.Printf("Active: %v\n", e.Active)
+	log.Printf("Action: %s\n", e.Action)
+	log.Printf("ErrType: %v\n", e.ErrType)
+	log.Printf("Err: %s\n", e.Err)
 }
 
 func main() {
@@ -74,7 +86,6 @@ func main() {
 
 			nc1.Publish(msg.Reply, g)
 		}
-		time.Sleep(1 * time.Millisecond)
 	}
 }
 
