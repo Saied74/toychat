@@ -19,3 +19,4 @@ web/ui
 mat/matMat
 dbmgr/dbmgr
 test.sh
+frontend/web/ui

@@ -12,6 +12,3 @@ dbmgr: is the database interface for the user database
 nats server: which connects the web, chat, mat and dbmgr together.
 mysql database: which provides a table for the session manager and a table for
 end user information.
-
-Right now, the dbmgr, chat and mat are not threaded.  Next step is to thread
-them with go routines.  

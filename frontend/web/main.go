@@ -47,10 +47,6 @@ func main() {
 	pw := flag.String("pw", "password", "database password is always required")
 	flag.Parse()
 	dbAddress := strings.Replace(*dsn, "password", *pw, 1)
-	// log.Printf("dsn %s", *dsn)
-	// log.Printf("pw %s", *pw)
-	// log.Printf("dbAddress %s", dbAddress)
-	// os.Exit(1)
 
 	infoLog := getInfoLogger(os.Stdout)
 	errorLog := getErrorLogger(os.Stdout)

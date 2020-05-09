@@ -25,8 +25,9 @@ func main() {
 	flag.Parse()
 
 	var err error
-	dsn := "toy:f00lish@/toychat?parseTime=true"
+	dsn := "toy:password@/toychat?parseTime=true"
 	dsn = strings.Replace(dsn, "password", *pw, 1)
+
 	infoLog := getInfoLogger(os.Stdout)
 	errorLog := getErrorLogger(os.Stdout)
 
