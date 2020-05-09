@@ -8,13 +8,14 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
-func playChatHandler(chat []byte) []byte {
-	sliceValue := strings.Split(string(chat), " ")
+func playChatHandler(msg *nats.Msg, conn *nats.Conn) {
+	// runner := broker.NewRunner(msg.Reply)
+	sliceValue := strings.Split(string(msg.Data), " ")
 	for i, j := 0, len(sliceValue)-1; i < j; i, j = i+1, j-1 {
 		sliceValue[i], sliceValue[j] = sliceValue[j], sliceValue[i]
 	}
 	newvalue := strings.Join(sliceValue, " ")
-	return []byte(newvalue)
+	conn.Publish(msg.Reply, []byte(newvalue))
 }
 
 func main() {
@@ -26,14 +27,12 @@ func main() {
 	}
 	defer nc1.Close()
 
+	sub, _ := nc1.SubscribeSync("forChat")
 	for {
-		sub, _ := nc1.SubscribeSync("forChat") //, func(matMsg *nats.Msg) { //playMatHandler)
 		msg, err := sub.NextMsg(10 * time.Hour)
 		if err != nil {
 			log.Fatal("Error from Sub Sync: ", err)
 		}
-		matValue := playChatHandler(msg.Data)
-		nc1.Publish(msg.Reply, matValue)
-		time.Sleep(1 * time.Millisecond)
+		go playChatHandler(msg, nc1)
 	}
 }

@@ -8,13 +8,13 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
-func playMatHandler(matMsg []byte) []byte {
+func playMatHandler(msg *nats.Msg, conn *nats.Conn) {
 	var matValue = ""
-	sliceLen := len(strings.Split(string(matMsg), " "))
+	sliceLen := len(strings.Split(string(msg.Data), " "))
 	for i := 0; i < sliceLen; i++ {
 		matValue += "mat "
 	}
-	return []byte(matValue)
+	conn.Publish(msg.Reply, []byte(matValue))
 }
 
 func main() {
@@ -26,14 +26,12 @@ func main() {
 	}
 	defer nc1.Close()
 
+	sub, _ := nc1.SubscribeSync("forMat")
 	for {
-		sub, _ := nc1.SubscribeSync("forMat") //, func(matMsg *nats.Msg) { //playMatHandler)
 		msg, err := sub.NextMsg(10 * time.Hour)
 		if err != nil {
 			log.Fatal("Error from Sub Sync: ", err)
 		}
-		matValue := playMatHandler(msg.Data)
-		nc1.Publish(msg.Reply, matValue)
-		time.Sleep(1 * time.Millisecond)
+		go playMatHandler(msg, nc1)
 	}
 }

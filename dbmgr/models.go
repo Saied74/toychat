@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/saied74/toychat/pkg/broker"
@@ -15,14 +14,14 @@ type userModel struct {
 	dB *sql.DB
 }
 
-type user struct {
-	ID             int
-	Name           string
-	Email          string
-	HashedPassword []byte
-	Created        time.Time
-	Active         bool
-}
+// type user struct {
+// 	ID             int
+// 	Name           string
+// 	Email          string
+// 	HashedPassword []byte
+// 	Created        time.Time
+// 	Active         bool
+// }
 
 func (m *userModel) insertUser(name, email, password string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)

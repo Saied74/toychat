@@ -42,24 +42,25 @@ func main() {
 	}
 	defer nc1.Close()
 
+	sub, _ := nc1.SubscribeSync("forDB")
 	for {
-		sub, _ := nc1.SubscribeSync("forDB") //, func(matMsg *nats.Msg) { //playMatHandler)
 		msg, err := sub.NextMsg(10 * time.Hour)
 		if err != nil {
 			app.errorLog.Printf("Error from Sub Sync %v: ", err)
 		}
-		exchData, err := app.processDBRequest(msg.Data)
-		if err != nil {
-			app.errorLog.Printf("processing DB request failed %v", err)
-		}
-		g, err := exchData.ToGob()
-		if err != nil {
-			app.errorLog.Printf("did not go to Gob %v", err)
-			nc1.Publish(msg.Reply, []byte{})
-		} else {
-
-			nc1.Publish(msg.Reply, g)
-		}
+		go app.processDBRequests(msg, nc1)
+		// exchData, err := app.processDBRequest(msg.Data)
+		// if err != nil {
+		// 	app.errorLog.Printf("processing DB request failed %v", err)
+		// }
+		// g, err := exchData.ToGob()
+		// if err != nil {
+		// 	app.errorLog.Printf("did not go to Gob %v", err)
+		// 	nc1.Publish(msg.Reply, []byte{})
+		// } else {
+		//
+		// 	nc1.Publish(msg.Reply, g)
+		// }
 	}
 }
 
