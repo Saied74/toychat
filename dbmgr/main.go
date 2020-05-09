@@ -2,8 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -18,9 +20,13 @@ type App struct {
 }
 
 func main() {
+
+	pw := flag.String("pw", "password", "database password is always required")
+	flag.Parse()
+
 	var err error
 	dsn := "toy:f00lish@/toychat?parseTime=true"
-
+	dsn = strings.Replace(dsn, "password", *pw, 1)
 	infoLog := getInfoLogger(os.Stdout)
 	errorLog := getErrorLogger(os.Stdout)
 
@@ -49,18 +55,6 @@ func main() {
 			app.errorLog.Printf("Error from Sub Sync %v: ", err)
 		}
 		go app.processDBRequests(msg, nc1)
-		// exchData, err := app.processDBRequest(msg.Data)
-		// if err != nil {
-		// 	app.errorLog.Printf("processing DB request failed %v", err)
-		// }
-		// g, err := exchData.ToGob()
-		// if err != nil {
-		// 	app.errorLog.Printf("did not go to Gob %v", err)
-		// 	nc1.Publish(msg.Reply, []byte{})
-		// } else {
-		//
-		// 	nc1.Publish(msg.Reply, g)
-		// }
 	}
 }
 

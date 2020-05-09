@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/justinas/nosurf"
 	"github.com/saied74/toychat/pkg/broker"
@@ -14,9 +15,10 @@ func (st *sT) logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		st.infoLog.Printf("%s - %s %s %s", r.RemoteAddr, r.Proto, r.Method,
 			r.URL.RequestURI())
-
+		start := time.Now()
 		next.ServeHTTP(w, r)
-
+		end := time.Now()
+		st.infoLog.Printf("Time difference %v", end.Sub(start))
 	})
 }
 
@@ -81,8 +83,8 @@ func (st *sT) authenticate(next http.Handler) http.Handler {
 
 type plainHandler func(w http.ResponseWriter, r *http.Request)
 
-func (st *sT) dynamicRoutes(next plainHandler) http.Handler {
-	return st.recoverPanic(st.logRequest(st.authenticate(http.HandlerFunc(next))))
+func (st *sT) dynamicRoutes(next http.Handler) http.Handler {
+	return noSurf(st.sessionManager.LoadAndSave(st.recoverPanic(st.logRequest(st.authenticate(next)))))
 }
 
 func (st *sT) dynamicAuthRoute(next plainHandler) http.Handler {

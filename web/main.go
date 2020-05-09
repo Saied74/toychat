@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/scs/mysqlstore"
@@ -41,14 +42,20 @@ func main() {
 	var err error
 	// var st sT
 	ipAddress := flag.String("ipa", ":4000", "server ip address")
-	dsn := flag.String("dsn", "toy:f00lish@/toychat?parseTime=true",
+	dsn := flag.String("dsn", "toy:password@/toychat?parseTime=true",
 		"MySQL data source name")
+	pw := flag.String("pw", "password", "database password is always required")
 	flag.Parse()
+	dbAddress := strings.Replace(*dsn, "password", *pw, 1)
+	// log.Printf("dsn %s", *dsn)
+	// log.Printf("pw %s", *pw)
+	// log.Printf("dbAddress %s", dbAddress)
+	// os.Exit(1)
 
 	infoLog := getInfoLogger(os.Stdout)
 	errorLog := getErrorLogger(os.Stdout)
 
-	db, err := openDB(*dsn)
+	db, err := openDB(dbAddress)
 	if err != nil {
 		errorLog().Fatal(err)
 	}
@@ -79,7 +86,7 @@ func main() {
 	srv := &http.Server{
 		Addr:         *ipAddress,
 		ErrorLog:     st.errorLog,
-		Handler:      noSurf(st.sessionManager.LoadAndSave(mux)),
+		Handler:      st.dynamicRoutes(mux),
 		TLSConfig:    tlsConfig,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -105,13 +112,13 @@ func openDB(dsn string) (*sql.DB, error) {
 
 func (st *sT) routes() *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.Handle("/home", st.dynamicRoutes(st.homeHandler))
-	mux.Handle("/chat", st.dynamicAuthRoute(st.chatHandler))
-	mux.Handle("/play", st.dynamicRoutes(st.playHandler))
+	mux.HandleFunc("/home", st.homeHandler)
+	mux.Handle("/chat", st.requireAuthentication(http.HandlerFunc(st.chatHandler)))
+	mux.Handle("/play", st.requireAuthentication(http.HandlerFunc(st.playHandler)))
 	mux.HandleFunc("/playmat", st.playMatHandler)
-	mux.Handle("/mat", st.dynamicRoutes(st.matHandler))
-	mux.Handle("/login", st.dynamicRoutes(st.loginHandler))
-	mux.Handle("/logout", st.dynamicRoutes(st.logoutHandler))
-	mux.Handle("/signup", st.dynamicRoutes(st.signupHandler))
+	mux.HandleFunc("/mat", st.matHandler)
+	mux.HandleFunc("/login", st.loginHandler)
+	mux.HandleFunc("/logout", st.logoutHandler)
+	mux.HandleFunc("/signup", st.signupHandler)
 	return mux
 }

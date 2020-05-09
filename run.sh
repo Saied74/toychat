@@ -1,5 +1,30 @@
 #!/bin/bash
 
+
+if [ $# -lt 1 ]
+then
+  echo 'must provide at least one argument'
+  exit 0
+fi
+
+if [ $1 == 'ui' ] && [ $# -lt 2 ]
+then
+  echo 'too few arguments for invoking ui'
+  exit 0
+fi
+
+if [ $1 == 'dbmgr' ] && [ $# -lt 2 ]
+then
+  echo 'too few arguments for invoking dbmgr'
+  exit 0
+fi
+
+if [ $1 == 'all' ] && [ $# -lt 2 ]
+then
+  echo 'too few arguments for invoking all'
+  exit 0
+fi
+
 cd $GOPATH/src/toychat
 
 if [ $1 == 'ui' ]
@@ -8,7 +33,7 @@ then
   killall ui
   rm ui
   go build -o ui .
-  ./ui &
+  ./ui -pw $2 &
   cd ..
   exit 0
 fi
@@ -41,7 +66,7 @@ then
   killall dbmgr
   rm dbmgr
   go build -o dbmgr .
-  ./dbmgr &
+  ./dbmgr -pw $2 &
   cd ..
   exit 0
 fi
@@ -72,7 +97,7 @@ cd $GOPATH/src/toychat
 cd web
 rm ui
 go build -o ui .
-./ui &
+./ui -pw $2 &
 cd ../mat
 rm matMat
 go build -o matMat .
@@ -84,7 +109,7 @@ go build -o chat .
 cd ../dbmgr
 rm dbmgr
 go build -o dbmgr .
-./dbmgr &
+./dbmgr -pw $2 &
 exit 0
 fi
 
