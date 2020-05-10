@@ -17,10 +17,12 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+//so if the string is used in new packages, it remains privat for this app.
 type contextKey string
 
 const contextKeyIsAuthenticated = contextKey("isAuthenticated")
 
+//this struct is for injecting data into the handlers and supporting methods.
 type sT struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
@@ -40,7 +42,7 @@ type templateData struct {
 
 func main() {
 	var err error
-	// var st sT
+	//the pw flag is mandatory.
 	ipAddress := flag.String("ipa", ":4000", "server ip address")
 	dsn := flag.String("dsn", "toy:password@/toychat?parseTime=true",
 		"MySQL data source name")
@@ -48,6 +50,7 @@ func main() {
 	flag.Parse()
 	dbAddress := strings.Replace(*dsn, "password", *pw, 1)
 
+	//for testing, we can pass a buffer to the logger.  For productoin, a file.
 	infoLog := getInfoLogger(os.Stdout)
 	errorLog := getErrorLogger(os.Stdout)
 
@@ -71,6 +74,8 @@ func main() {
 		cache: newTemplateCache(allTmplFiles),
 	}
 
+	//at some point when different applicaitons are running on different servers
+	//the database for each applicaiton needs to be seperated.
 	st.sessionManager.Store = mysqlstore.New(db)
 
 	tlsConfig := &tls.Config{
@@ -82,7 +87,7 @@ func main() {
 	srv := &http.Server{
 		Addr:         *ipAddress,
 		ErrorLog:     st.errorLog,
-		Handler:      st.dynamicRoutes(mux),
+		Handler:      st.dynamicRoutes(mux), //see the middlware file.
 		TLSConfig:    tlsConfig,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -106,6 +111,8 @@ func openDB(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
+//chat and play, in addition to the dynamicRoutes middlware are wrapped with
+//requireAuthentication so they are not accessible to non authenicated users.
 func (st *sT) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/home", st.homeHandler)

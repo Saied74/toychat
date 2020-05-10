@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 )
 
+//constants used in the handlers in place of the strings to avoid typing mistakes
 const (
 	home                = "home"
 	login               = "login"
@@ -39,5 +40,6 @@ var allTmplFiles = map[string][]string{
 	},
 }
 
+//Self signed keys.  Works on Safari on Mac, Chrome constantly complains
 var serverKey = filepath.Join(os.Getenv("GOPATH"), "src/toychat/certs/https-server.key")
 var serverCrt = filepath.Join(os.Getenv("GOPATH"), "src/toychat/certs/https-server.crt")

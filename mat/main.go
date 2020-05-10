@@ -8,6 +8,7 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
+//see the commments in the chat main program.
 func playMatHandler(msg *nats.Msg, conn *nats.Conn) {
 	var matValue = ""
 	sliceLen := len(strings.Split(string(msg.Data), " "))

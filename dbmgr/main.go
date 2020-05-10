@@ -12,6 +12,10 @@ import (
 	nats "github.com/nats-io/nats.go"
 )
 
+//dbmgr in spirit works very much like the mat and chat progreams except it
+//has more parts to it.  The comments about safety of concurrency in the
+//chat main file apply here as well.
+
 //App for inseertion of variables into functions
 type App struct {
 	errorLog *log.Logger
@@ -37,6 +41,7 @@ func main() {
 	}
 	defer db.Close()
 
+	//the function of app is dpenendency injection.
 	app := App{
 		infoLog:  infoLog(),
 		errorLog: errorLog(),

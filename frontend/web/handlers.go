@@ -4,14 +4,18 @@ import (
 	"errors"
 	"net/http"
 
+	//broker pkg contains the code that is used on both sides of the nats connectoin.
 	"github.com/saied74/toychat/pkg/broker"
 )
 
-// TODO: in general, these handlers are weak with respect to transport error
+// TODO: these handlers might be weak with respect to nats transport error
+
+//much of the commmon work is done in render, addDefaultData and middlewares
 func (st *sT) homeHandler(w http.ResponseWriter, r *http.Request) {
 	st.render(w, r, home)
 }
 
+//using the golang standard library, so need to check for correct path and method.
 func (st *sT) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/login" {
 		st.errorLog.Printf("bad path %s", r.URL.Path)
@@ -30,6 +34,9 @@ func (st *sT) loginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		st.td.Form = st.newForm(r.PostForm, r)
+
+		//authenticateUserR R stands for remote sends the data to the dbmgr over
+		//the nats connectoin to be validated.
 		id, err := st.authenticateUserR(st.td.Form.getField("email"),
 			st.td.Form.getField("password"))
 		if err != nil {
@@ -41,7 +48,7 @@ func (st *sT) loginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-
+		//RenewToken is used for security purpose for each state change.
 		st.sessionManager.RenewToken(r.Context())
 		st.sessionManager.Put(r.Context(), authenticatedUserID, id)
 		http.Redirect(w, r, home, http.StatusSeeOther)
@@ -52,6 +59,7 @@ func (st *sT) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//The same here as login with path and method checking.
 func (st *sT) signupHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/signup" {
 		st.errorLog.Printf("bad path %s", r.URL.Path)
@@ -62,7 +70,6 @@ func (st *sT) signupHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 
 	case "GET":
-		st.infoLog.Printf("got to get %s", r.Method)
 		st.render(w, r, signup)
 
 	case "POST":
@@ -81,6 +88,8 @@ func (st *sT) signupHandler(w http.ResponseWriter, r *http.Request) {
 			st.render(w, r, signup)
 			return
 		}
+		//once the form is validated (above), it is sent to the dbmgr over nats
+		//to be inserted into the database.
 		err = st.insertUserR(Form.getField("name"), Form.getField("email"),
 			Form.getField("password"))
 		if err != nil {
@@ -93,6 +102,7 @@ func (st *sT) signupHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		//RenewToken is used for security purpose for each state change.
 		st.sessionManager.RenewToken(r.Context())
 		st.sessionManager.Put(r.Context(), "flash", "Your signup was successful, pleaselogin")
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -103,11 +113,14 @@ func (st *sT) signupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (st *sT) logoutHandler(w http.ResponseWriter, r *http.Request) {
+	//RenewToken is used for security purpose for each state change.
 	st.sessionManager.RenewToken(r.Context())
 	st.sessionManager.Remove(r.Context(), authenticatedUserID)
 	http.Redirect(w, r, "/home", http.StatusSeeOther)
 }
 
+//for chatValue and matHandler, the work is done in thier Ajax handlers
+//below wch are playHandler (for chatHandler) and playMatHandler for matHandler
 func (st *sT) chatHandler(w http.ResponseWriter, r *http.Request) {
 	st.render(w, r, chat)
 }
@@ -116,6 +129,7 @@ func (st *sT) matHandler(w http.ResponseWriter, r *http.Request) {
 	st.render(w, r, mat)
 }
 
+//This is the Ajax end point for the chat.
 func (st *sT) playHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm() //parse request, handle error
 	if err != nil {
@@ -123,6 +137,8 @@ func (st *sT) playHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	value, ok := r.Form["value"]
 	if ok {
+		//it sends the input to the chat application over the nats connection
+		//and synchroously waits for the response to be delivered to its mailbox.
 		chatValue := st.chatConnection(value[0], "forChat", "fromChat")
 		w.Write(chatValue)
 	}

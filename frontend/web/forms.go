@@ -9,14 +9,22 @@ import (
 	"unicode/utf8"
 )
 
+//methods on this page validate the html form fields and produce html error
+//messages to be displayed as feedback to to he user.
+
+//I have changed the errors from map[string][]string, the way that Alex Edwards
+//has it to just map[string]string with semicolmn seperators in place of seperate
+//slice elements.  It makes the html rendering much simpleer.
 type errOrs map[string]string
 
 //formData is for rendering the longin screen
 type formData struct {
-	Fields url.Values
+	Fields url.Values //this is a map[string][]string type, see net/url package
 	Errors errOrs
 }
 
+//self explantary, it checks for email validity though Bootstrap css does some
+//of that too.
 var emailRX = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 
 func (e errOrs) addError(field, message string) {
