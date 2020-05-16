@@ -1,5 +1,5 @@
 
-{{ define "playpage"}}
+{{ define "playmatpage"}}
 <script>
 $(document).ready (function() {
 
@@ -8,7 +8,7 @@ counter = makecounter()
 $("button").click(function(){
 
   Value = $("#newIDx").val();
-  $.post("/play",
+  $.post("/playmat",
   {
     value: Value,
     csrf_token: {{.CSRFToken}}

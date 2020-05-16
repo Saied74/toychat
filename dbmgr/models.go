@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
@@ -14,14 +15,15 @@ type userModel struct {
 	dB *sql.DB
 }
 
-func (m *userModel) insertUser(name, email, password string) error {
+func (m *userModel) insertUser(table, role, name, email, password string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return err //note we are not returning any words so we can check for the error
 	}
-	stmt := `INSERT INTO users (name, email, hashed_password, created) VALUES(?, ?, ?, UTC_TIMESTAMP())`
+	stmt := `INSERT INTO ` + table +
+		` (name, email, hashed_password, created, role) VALUES(?, ?, ?, UTC_TIMESTAMP(), ?)`
 
-	_, err = m.dB.Exec(stmt, name, email, string(hashedPassword))
+	_, err = m.dB.Exec(stmt, name, email, string(hashedPassword), role)
 	if err != nil {
 		var mySQLError *mysql.MySQLError
 		if errors.As(err, &mySQLError) {
@@ -35,12 +37,14 @@ func (m *userModel) insertUser(name, email, password string) error {
 	return nil
 }
 
-func (m *userModel) authenticateUser(email, password string) (int, error) {
+func (m *userModel) authenticateUser(table, role, email, password string) (int, error) {
 	var id int
 	var hashedPassword []byte
 
-	stmt := "SELECT id, hashed_password FROM users WHERE email = ? AND active = TRUE"
-	row := m.dB.QueryRow(stmt, email)
+	stmt := `SELECT id, hashed_password FROM ` + table +
+		` WHERE email = ? AND role = ? AND active = TRUE`
+	// log.Printf("From select user %s", stmt)
+	row := m.dB.QueryRow(stmt, email, role)
 	err := row.Scan(&id, &hashedPassword)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -58,17 +62,58 @@ func (m *userModel) authenticateUser(email, password string) (int, error) {
 	return id, nil
 }
 
-func (m *userModel) getUser(id int) (*broker.ExchData, error) {
-	var u = &broker.ExchData{}
+func (m *userModel) getUser(table string, id int) (*broker.ExchData, error) {
+	var u = broker.ExchData{}
 
-	stmt := "SELECT id, name, email, created, active FROM users WHERE id = ?"
+	stmt := `SELECT id, name, email, created, active FROM ` + table +
+		` WHERE id = ?`
 	row := m.dB.QueryRow(stmt, id)
 	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Created, &u.Active)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, broker.ErrNoRecord
 		}
-		return nil, err
+		return &broker.ExchData{}, err
+	}
+	return &u, nil
+}
+
+func (m *userModel) getByStatus(table, role string, status bool) (*broker.ExchData, error) {
+	// log.Println("got to getByStatus func", table, status)
+	var u = &broker.ExchData{}
+
+	stmt := `SELECT id, name, email, created, role FROM ` + table +
+		` WHERE active = ? AND role = ?`
+	rows, err := m.dB.Query(stmt, status, role)
+	if err != nil {
+		return &broker.ExchData{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		p := &broker.Person{}
+		err = rows.Scan(&p.ID, &p.Name, &p.Email, &p.Created, &p.Role)
+		if err != nil {
+			return &broker.ExchData{}, err
+		}
+		// log.Println("got to people", *p)
+		u.People = append(u.People, *p)
+	}
+
+	if err = rows.Err(); err != nil {
+		return &broker.ExchData{}, err
 	}
 	return u, nil
+}
+
+func (m *userModel) activation(table string, people []broker.Person) error {
+	stmt := `UPDATE ` + table + ` SET active = ? WHERE id= ?`
+	for _, person := range people {
+		log.Println("deep in there", person.Active, person.ID)
+		_, err := m.dB.Exec(stmt, person.Active, person.ID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

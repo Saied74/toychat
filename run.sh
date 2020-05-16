@@ -13,6 +13,12 @@ then
   exit 0
 fi
 
+if [ $1 == 'ux' ] && [ $# -lt 2 ]
+then
+  echo 'too few arguments for invoking ux'
+  exit 0
+fi
+
 if [ $1 == 'dbmgr' ] && [ $# -lt 2 ]
 then
   echo 'too few arguments for invoking dbmgr'
@@ -34,6 +40,17 @@ then
   rm ui
   go build -o ui .
   ./ui -pw $2 &
+  cd $GOPATH/src/toychat
+  exit 0
+fi
+
+if [ $1 == 'ux' ]
+then
+  cd $GOPATH/src/toychat/backend/backendweb
+  killall ux
+  rm ux
+  go build -o ux .
+  ./ux -pw $2 &
   cd $GOPATH/src/toychat
   exit 0
 fi

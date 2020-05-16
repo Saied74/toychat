@@ -22,6 +22,7 @@ func (st *sT) insertUserR(name, email, password string) error {
 		Email:    email,
 		Password: password,
 		Action:   "insert",
+		Table:    "users",
 	}
 	sendData, err := exchData.ToGob()
 	if err != nil {
@@ -38,6 +39,7 @@ func (st *sT) authenticateUserR(email, password string) (int, error) {
 		Email:    email,
 		Password: password,
 		Action:   "authenticate",
+		Table:    "users",
 	}
 	sendData, err := exchData.ToGob()
 	if err != nil {
@@ -53,6 +55,7 @@ func (st *sT) getUserR(id int) (*broker.ExchData, error) {
 	exchData := broker.ExchData{
 		ID:     id,
 		Action: "getuser",
+		Table:  "users",
 	}
 	sendData, err := exchData.ToGob()
 	if err != nil {

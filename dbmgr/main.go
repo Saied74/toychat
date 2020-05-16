@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"flag"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	nats "github.com/nats-io/nats.go"
+	"github.com/saied74/toychat/pkg/centerr"
 )
 
 //dbmgr in spirit works very much like the mat and chat progreams except it
@@ -32,25 +32,25 @@ func main() {
 	dsn := "toy:password@/toychat?parseTime=true"
 	dsn = strings.Replace(dsn, "password", *pw, 1)
 
-	infoLog := getInfoLogger(os.Stdout)
-	errorLog := getErrorLogger(os.Stdout)
+	// infoLog := getInfoLogger(os.Stdout)
+	// errorLog := getErrorLogger(os.Stdout)
 
 	db, err := openDB(dsn)
 	if err != nil {
-		errorLog().Fatal(err)
+		centerr.ErrorLog.Fatal(err)
 	}
 	defer db.Close()
 
 	//the function of app is dpenendency injection.
 	app := App{
-		infoLog:  infoLog(),
-		errorLog: errorLog(),
-		users:    &userModel{dB: db},
+		// infoLog:  infoLog(),
+		// errorLog: errorLog(),
+		users: &userModel{dB: db},
 	}
 
 	nc1, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
-		app.errorLog.Fatal("Error from onnection", err)
+		centerr.ErrorLog.Fatal("Error from onnection", err)
 	}
 	defer nc1.Close()
 
@@ -58,8 +58,9 @@ func main() {
 	for {
 		msg, err := sub.NextMsg(10 * time.Hour)
 		if err != nil {
-			app.errorLog.Printf("Error from Sub Sync %v: ", err)
+			centerr.ErrorLog.Printf("Error from Sub Sync %v: ", err)
 		}
+		// log.Println("got inside main in dbmgr")
 		go app.processDBRequests(msg, nc1)
 	}
 }

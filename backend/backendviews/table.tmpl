@@ -1,0 +1,36 @@
+{{define "tablepage"}}
+
+{{if not .Active}} <h2>Active</h2>{{end}}
+{{if .Active}}<h2>Inactive</h2>{{end}}
+{{if not .Active}}
+<form action="{{.SideLink3}}" method="POST">
+  {{end}}
+  {{if .Active}}
+  <form action="{{.SideLink2}}" method="post">
+  {{end}}
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">ID</th>
+      <th scope="col">Name</th>
+      <th scope="col">Email</th>
+      <th scope="col">Role</th>
+      <th scope="col" class="text-left" >Select</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range $idx, $row := .Table}}
+    <tr>
+      <td>{{$row.ID}}</td>
+      <td>{{$row.Name}}</td>
+      <td>{{$row.Email}}</td>
+      <td>{{$row.Role}}</td>
+      <td><input class="select" type="checkbox" value="" id="stateCheck{{$idx}}" name="stateCheck{{$idx}}"></td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+<button type="submit" class="btn btn-primary">Update</button>
+</form>
+{{end}}

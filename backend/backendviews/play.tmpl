@@ -17,7 +17,7 @@ $("button").click(function(){
     //create a new paragraph and set its ID
     //this is for the input
     var newP = document.createElement("p");
-    newP.innerHTML = "Sent: " + Value;
+    newP.innerHTML = Value;
     count = counter();
     oldID = "newID" + String(count - 1); //point to the back link
     nextID = "newID" + count;
@@ -28,7 +28,7 @@ $("button").click(function(){
 
     //create another paragraph and set its ID
     anotherP = document.createElement("p");
-    anotherP.innerHTML = "Recieved: " + data;
+    anotherP.innerHTML = data;
     count = counter();
     oldID = "newID" + String(count - 1); //point to the back link
     nextID = "newID" + count;

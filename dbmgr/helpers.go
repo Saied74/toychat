@@ -37,21 +37,27 @@ func (app *App) processDBRequests(msg *nats.Msg, conn *nats.Conn) {
 	if err != nil {
 		exchData.EncodeErr(err)
 	}
+	// log.Println("got to getByStatus zzzz", exchData.Action)
 	if err == nil {
 		switch exchData.Action {
 		case "insert":
 			name := exchData.Name
 			email := exchData.Email
 			password := exchData.Password
-			err := app.users.insertUser(name, email, password)
+			table := exchData.Table
+			role := exchData.Role
+			err := app.users.insertUser(table, role, name, email, password)
 			exchData.EncodeErr(err)
+
 		case "authenticate":
 			email := exchData.Email
 			password := exchData.Password
-			id, err := app.users.authenticateUser(email, password)
+			table := exchData.Table
+			role := exchData.Role
+			id, err := app.users.authenticateUser(table, role, email, password)
 			if err != nil {
-				app.errorLog.Printf("in authenticate case after authentiateUser call %v",
-					err)
+				// app.errorLog.Printf("in authenticate case after authentiateUser call %v",
+				// 	err)
 				exchData.EncodeErr(err)
 			} else {
 				exchData.ID = id
@@ -59,12 +65,26 @@ func (app *App) processDBRequests(msg *nats.Msg, conn *nats.Conn) {
 			}
 		case "getuser":
 			id := exchData.ID
-			exchData, err = app.users.getUser(id)
+			table := exchData.Table
+			exchData, err = app.users.getUser(table, id)
 			if err != nil {
 				exchData.EncodeErr(err)
 			} else {
 				exchData.EncodeErr(err)
 			}
+		case "getByStatus":
+			// log.Println("got to getByStatus xxx", exchData)
+			table := exchData.Table
+			status := exchData.Active
+			role := exchData.Role
+			exchData, err = app.users.getByStatus(table, role, status)
+			exchData.EncodeErr(err)
+		case "doActivation":
+			log.Println("in doActivation", exchData)
+			table := exchData.Table
+			people := exchData.People
+			err = app.users.activation(table, people)
+			exchData.EncodeErr(err)
 		default:
 			exchData.EncodeErr(err)
 		}

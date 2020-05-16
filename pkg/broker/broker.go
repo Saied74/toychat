@@ -10,7 +10,7 @@ import (
 
 type errMsg int
 
-//MpErr amd the rest of this block is used for encoding and decoding error types
+//MoErr and the rest of this block is used for encoding and decoding error types
 //through the gob encoding and decoding (error type does not work)
 const (
 	NoErr         errMsg = iota //no error
@@ -29,6 +29,18 @@ var (
 	ErrDuplicateEmail = errors.New("models: duplicate email")
 )
 
+//Person is for extracting multiple database rows
+type Person struct {
+	ID       int
+	Name     string
+	Email    string
+	Password string
+	Created  time.Time
+	Role     string
+	Active   bool
+	Online   bool
+}
+
 //ExchData for data exchange in gob format
 type ExchData struct {
 	ID             int
@@ -36,12 +48,15 @@ type ExchData struct {
 	Email          string
 	Password       string
 	Created        time.Time
-	Active         bool
+	Active         bool //true is active, false is inactive
 	HashedPassword []byte
 	Authenticated  bool
 	Action         string //authenticate, insert, and getuser are permitted actions
 	ErrType        errMsg
 	Err            string
+	Table          string
+	Role           string   //one of superadmin, admin, agent
+	People         []Person //returns admins or agents by status (e.g. active)
 }
 
 //ToGob gob encodes ExchData and returns a byte slice
