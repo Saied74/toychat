@@ -116,7 +116,6 @@ func GetByStatusR(table, role string, status bool) (*[]broker.Person, error) {
 
 //ActivationR activates or deactivates agent or admin as requested.
 func ActivationR(table, role string, people *[]broker.Person) error {
-
 	exchData := broker.ExchData{
 		Action: "doActivation",
 		Table:  table,
@@ -130,6 +129,25 @@ func ActivationR(table, role string, people *[]broker.Person) error {
 	answer := chatConnection(string(sendData), "forDB")
 	exchData.FromGob(answer)
 	// centerr.InfoLog.Println("got to returning people", exchData.People)
+	return exchData.DecodeErr()
+}
+
+//ChgPwdR sends a request to the dbmgr to change the pawword for the specified email
+func ChgPwdR(table, role, email, password string) error {
+	exchData := broker.ExchData{
+		Action:   "chgPwd",
+		Table:    table,
+		Role:     role,
+		Email:    email,
+		Password: password,
+	}
+
+	sendData, err := exchData.ToGob()
+	if err != nil {
+		return err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchData.FromGob(answer)
 	return exchData.DecodeErr()
 }
 

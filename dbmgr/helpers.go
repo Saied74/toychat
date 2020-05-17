@@ -85,6 +85,14 @@ func (app *App) processDBRequests(msg *nats.Msg, conn *nats.Conn) {
 			people := exchData.People
 			err = app.users.activation(table, people)
 			exchData.EncodeErr(err)
+		case "chgPwd":
+			table := exchData.Table
+			role := exchData.Role
+			email := exchData.Email
+			password := exchData.Password
+			err = app.users.chgPwd(table, role, email, password)
+			log.Printf("error from db insert %v", err)
+			exchData.EncodeErr(err)
 		default:
 			exchData.EncodeErr(err)
 		}

@@ -117,3 +117,18 @@ func (m *userModel) activation(table string, people []broker.Person) error {
 	}
 	return nil
 }
+
+func (m *userModel) chgPwd(table, role, email, password string) error {
+	log.Println("in chgPwd", table, role, email, password)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		return err //note we are not returning any words so we can check for the error
+	}
+	stmt := `UPDATE ` + table + ` SET hashed_password = ? WHERE role = ? AND email= ? AND active = TRUE`
+
+	_, err = m.dB.Exec(stmt, string(hashedPassword), role, email)
+	if err != nil {
+		return err
+	}
+	return nil
+}

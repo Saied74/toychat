@@ -33,21 +33,22 @@ type App struct {
 	sessionManager *scs.SessionManager
 	users          *models.UserModel
 	td             *templateData
+	table          string
+	role           string
+	nextRole       string
+	redirect       string
 }
 
 type templateData struct {
-	table     string //the database table to enter the transactions
-	role      string
-	nextRole  string
 	Scope     string //scope pharase on the navbar
 	Home      string //home address link (e.g. /super/home or /admin/home)
 	Login     string //login link (e.g. /super/login or /admin/login)
 	Logout    string //same with logout.
+	ChgPwd    string
 	Msg       string //login, add admin or add agent message.
 	SideLink1 string //addAgent or addAdmin
 	SideLink2 string //activateAgent or activateAdmin
 	SideLink3 string //deactivateAgent or deactivateAdmin
-	ChgPWD    string //change password link (e.g. /admin/changePassword)
 	Super     bool   //role super = true
 	Admin     bool   //role admin = true
 	Agent     bool   // role agent= true
@@ -144,13 +145,13 @@ func (app *App) routes() *http.ServeMux {
 	mux.HandleFunc(adminHome, app.homeHandler)
 	mux.HandleFunc(adminLogin, app.loginHandler)
 	mux.HandleFunc(adminLogout, app.logoutHandler)
-	mux.HandleFunc("/admin/changePassword", app.requireAuthentication(app.adminChangePasswordHandler))
+	mux.HandleFunc(adminChgPwd, app.requireAuthentication(app.changePasswordHandler))
 	mux.HandleFunc(addAgent, app.requireAuthentication(app.addHandler))
 	mux.HandleFunc(activateAgent, app.requireAuthentication(app.activationHandler))
 	mux.HandleFunc(deactivateAgent, app.requireAuthentication(app.activationHandler))
 	mux.HandleFunc(agentHome, app.homeHandler)
 	mux.HandleFunc(agentLogin, app.loginHandler)
-	mux.HandleFunc("/agent/changePassword", app.requireAuthentication(app.agentChangePasswordHandler))
+	mux.HandleFunc(agentChgPwd, app.requireAuthentication(app.changePasswordHandler))
 	mux.HandleFunc(agentLogout, app.logoutHandler)
 	mux.HandleFunc("/agent/online", app.requireAuthentication(app.agentOnlineHandler))
 	mux.HandleFunc("/agent/offline", app.requireAuthentication(app.agentOfflineHandler))

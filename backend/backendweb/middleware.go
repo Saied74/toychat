@@ -80,7 +80,7 @@ func (app *App) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		usr, err := models.GetUserR(app.td.table, app.sessionManager.GetInt(r.Context(),
+		usr, err := models.GetUserR(app.table, app.sessionManager.GetInt(r.Context(),
 			authenticatedUserID))
 		if errors.Is(err, broker.ErrNoRecord) || !usr.Active {
 			app.sessionManager.Remove(r.Context(), authenticatedUserID)

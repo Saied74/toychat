@@ -35,7 +35,7 @@
         </li>
         {{ if not .Super}}
         <li class="nav-item">
-          <a class="nav-link" href="{{.ChgPWD}}">Change Password</a>
+          <a class="nav-link" href="{{.ChgPwd}}">Change Password</a>
         </li>
         {{end}}
         {{end}}
@@ -90,6 +90,7 @@
     {{block "signuppage" .}} {{end}}
     {{block "chatpage" .}} {{end}}
     {{block "matpage" .}} {{end}}
+    {{block "chgpwdpage" .}} {{end}}
   </div>
   <div class="col-sm-1"></div>
 </div>

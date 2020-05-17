@@ -22,11 +22,16 @@ const (
 	adminHome           = "/admin/home"
 	adminLogin          = "/admin/login"
 	adminLogout         = "/admin/logout"
+	adminChgPwd         = "/admin/changePassword"
 	agentHome           = "/agent/home"
 	agentLogin          = "/agent/login"
 	agentLogout         = "/agent/logout"
+	agentChgPwd         = "/agent/changePassword"
 	admins              = "admins"
-	msg                 = "Please log in"
+	admin               = "admin"
+	loginMsg            = "Please log in"
+	pwdMsg              = "Please fill out the fields below"
+	addMsg              = "Please enter the information for the person you want to add"
 	addAdmin            = "/super/addAdmin"
 	activateAdmin       = "/super/activateAdmin"
 	deactivateAdmin     = "/super/deactivateAdmin"
@@ -61,6 +66,10 @@ var allTmplFiles = map[string][]string{
 	"table": []string{
 		filepath.Join(os.Getenv("GOPATH"), "src/toychat/backend/backendviews/base.tmpl"),
 		filepath.Join(os.Getenv("GOPATH"), "src/toychat/backend/backendviews/table.tmpl"),
+	},
+	"chgPwd": []string{
+		filepath.Join(os.Getenv("GOPATH"), "src/toychat/backend/backendviews/base.tmpl"),
+		filepath.Join(os.Getenv("GOPATH"), "src/toychat/backend/backendviews/chgpwd.tmpl"),
 	},
 }
 

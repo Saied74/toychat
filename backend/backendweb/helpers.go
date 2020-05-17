@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/justinas/nosurf"
@@ -49,57 +50,98 @@ func (app *App) clientError(w http.ResponseWriter, status int, err error) {
 	http.Error(w, http.StatusText(status), status)
 }
 
+func (app *App) pickPath(w http.ResponseWriter, r *http.Request) error {
+	path := strings.Split(r.URL.Path, "/")
+	if len(path) < 3 {
+		return fmt.Errorf("bad path %s, short string", r.URL.Path)
+	}
+	switch path[1] {
+	case "super":
+		app.buildSuper()
+		switch path[2] {
+		case "activateAdmin":
+			app.td.Active = true
+		case "deactivateAdmin":
+			app.td.Active = false
+		case "changePassword":
+			app.td.Msg = pwdMsg
+		}
+	case "admin":
+		app.buildAdmin()
+		switch path[2] {
+		case "activateAgent":
+			app.td.Active = true
+		case "deactivateAgent":
+			app.td.Active = false
+		case "changePassword":
+			app.td.Msg = pwdMsg
+		}
+	case "agent":
+		app.buildAgent()
+	default:
+		return fmt.Errorf("bad path %s", r.URL.Path)
+	}
+	if strings.HasPrefix(path[2], "add") {
+		app.td.Msg = addMsg
+	}
+	return nil
+}
+
 func (app *App) buildSuper() {
-	app.td.table = admins
-	app.td.role = "superadmin"
-	app.td.nextRole = "admin"
+	app.table = admins
+	app.role = "superadmin"
+	app.nextRole = admin
+	app.redirect = superHome
 	app.td.Scope = "Super User"
-	app.td.Home = "/super/home"
-	app.td.Login = "/super/login"
-	app.td.Logout = "/super/logout"
+	app.td.Home = superHome
+	app.td.Login = superLogin
+	app.td.Logout = superLogout
+	app.td.ChgPwd = ""
 	app.td.SideLink1 = addAdmin
 	app.td.SideLink2 = activateAdmin
 	app.td.SideLink3 = deactivateAdmin
-	app.td.ChgPWD = ""
 	app.td.Super = true
 	app.td.Admin = false
 	app.td.Agent = false
-	app.td.Msg = msg
+	app.td.Msg = loginMsg
 }
 
 func (app *App) buildAdmin() {
-	app.td.table = admins
-	app.td.role = "admin"
-	app.td.nextRole = "agent"
+	app.table = admins
+	app.role = admin
+	app.nextRole = "agent"
+	app.redirect = adminHome
 	app.td.Scope = "Admin User"
-	app.td.Home = "/admin/home"
-	app.td.Login = "/admin/login"
-	app.td.Logout = "/admin/logout"
+	app.td.Home = adminHome
+	app.td.Login = adminLogin
+	app.td.Logout = adminLogout
+	app.td.ChgPwd = adminChgPwd
 	app.td.SideLink1 = addAgent
 	app.td.SideLink2 = activateAgent
 	app.td.SideLink3 = deactivateAgent
-	app.td.ChgPWD = "/admin/logout"
 	app.td.Super = false
 	app.td.Admin = true
 	app.td.Agent = false
-	app.td.Msg = msg
+	app.td.Msg = loginMsg
 }
 
 func (app *App) buildAgent() {
-	app.td.table = admins
-	app.td.role = ""
+	app.table = admins
+	app.role = ""
+	app.nextRole = ""
+	app.redirect = agentHome
 	app.td.Scope = "Agent"
-	app.td.Home = "/agent/home"
-	app.td.Login = "/agent/login"
-	app.td.Logout = "/agent/logout"
+	app.td.Home = agentHome
+	app.td.Login = agentLogin
+	app.td.Logout = agentLogout
+	app.td.ChgPwd = agentChgPwd
 	app.td.SideLink1 = ""
 	app.td.SideLink2 = ""
 	app.td.SideLink3 = ""
-	app.td.ChgPWD = "/agent/logout"
 	app.td.Super = false
 	app.td.Admin = false
 	app.td.Agent = true
-	app.td.Msg = msg
+	app.td.Msg = loginMsg
 }
 
 //templates are cashed by name to avoid repeated disk access.
