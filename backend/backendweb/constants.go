@@ -13,6 +13,7 @@ const (
 	chat                = "chat"
 	mat                 = "mat"
 	table               = "table"
+	agent               = "agent"
 	authenticatedUserID = "authenticatedUserID"
 	GET                 = "GET"
 	POST                = "POST"
@@ -38,6 +39,8 @@ const (
 	addAgent            = "/admin/addAgent"
 	activateAgent       = "/admin/activateAgent"
 	deactivateAgent     = "/admin/deactivateAgent"
+	agentOnline         = "/agent/online"
+	agentOffline        = "/agent/offline"
 )
 
 var allTmplFiles = map[string][]string{

@@ -76,7 +76,7 @@ func (app *App) pickPath(w http.ResponseWriter, r *http.Request) error {
 		case "changePassword":
 			app.td.Msg = pwdMsg
 		}
-	case "agent":
+	case agent:
 		app.buildAgent()
 	default:
 		return fmt.Errorf("bad path %s", r.URL.Path)
@@ -109,7 +109,7 @@ func (app *App) buildSuper() {
 func (app *App) buildAdmin() {
 	app.table = admins
 	app.role = admin
-	app.nextRole = "agent"
+	app.nextRole = agent
 	app.redirect = adminHome
 	app.td.Scope = "Admin User"
 	app.td.Home = adminHome
@@ -127,7 +127,7 @@ func (app *App) buildAdmin() {
 
 func (app *App) buildAgent() {
 	app.table = admins
-	app.role = ""
+	app.role = agent
 	app.nextRole = ""
 	app.redirect = agentHome
 	app.td.Scope = "Agent"
@@ -135,8 +135,8 @@ func (app *App) buildAgent() {
 	app.td.Login = agentLogin
 	app.td.Logout = agentLogout
 	app.td.ChgPwd = agentChgPwd
-	app.td.SideLink1 = ""
-	app.td.SideLink2 = ""
+	app.td.SideLink1 = agentOnline
+	app.td.SideLink2 = agentOffline
 	app.td.SideLink3 = ""
 	app.td.Super = false
 	app.td.Admin = false

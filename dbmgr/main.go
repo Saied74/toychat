@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"flag"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -12,9 +13,11 @@ import (
 	"github.com/saied74/toychat/pkg/centerr"
 )
 
-//dbmgr in spirit works very much like the mat and chat progreams except it
-//has more parts to it.  The comments about safety of concurrency in the
-//chat main file apply here as well.
+//dbmgr is composed of two files, main and helper.  Main (this file), interfaces
+//to nats server in the main function and hands the nats.Msg and nats.Conn opbjects
+//to the processing function (processDBRequests).  Once the request is hnande
+//off, the listenter goes back to listending.  Once the database action is
+//complete, processDBRequests returns the results through the nats mailbox.
 
 //App for inseertion of variables into functions
 type App struct {
@@ -32,9 +35,6 @@ func main() {
 	dsn := "toy:password@/toychat?parseTime=true"
 	dsn = strings.Replace(dsn, "password", *pw, 1)
 
-	// infoLog := getInfoLogger(os.Stdout)
-	// errorLog := getErrorLogger(os.Stdout)
-
 	db, err := openDB(dsn)
 	if err != nil {
 		centerr.ErrorLog.Fatal(err)
@@ -43,9 +43,9 @@ func main() {
 
 	//the function of app is dpenendency injection.
 	app := App{
-		// infoLog:  infoLog(),
-		// errorLog: errorLog(),
-		users: &userModel{dB: db},
+		infoLog:  getInfoLogger(os.Stderr)(),
+		errorLog: getErrorLogger(os.Stderr)(),
+		users:    &userModel{dB: db},
 	}
 
 	nc1, err := nats.Connect(nats.DefaultURL)
@@ -60,7 +60,6 @@ func main() {
 		if err != nil {
 			centerr.ErrorLog.Printf("Error from Sub Sync %v: ", err)
 		}
-		// log.Println("got inside main in dbmgr")
 		go app.processDBRequests(msg, nc1)
 	}
 }

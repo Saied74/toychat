@@ -135,6 +135,7 @@ if [ $1 == 'kill' ]
 then
   killall nats-server
   killall ui
+  killall ux
   killall matMat
   killall chat
   killall dbmgr

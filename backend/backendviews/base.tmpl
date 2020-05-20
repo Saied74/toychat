@@ -39,23 +39,6 @@
         </li>
         {{end}}
         {{end}}
-        <!-- <li class="nav-item">
-          <a class="nav-link" href="/mat">Mat</a>
-        </li> -->
-        <!-- <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            Dropdown
-          </a>
-          <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-            <a class="dropdown-item" href="#">Action</a>
-            <a class="dropdown-item" href="#">Another action</a>
-            <div class="dropdown-divider"></div>
-            <a class="dropdown-item" href="#">Something else here</a>
-          </div>
-        </li> -->
-        <!-- <li class="nav-item">
-          <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Disabled</a>
-        </li> -->
       </ul>
       {{if .LoggedIn}}
       <span class="navbar-text">
@@ -82,7 +65,13 @@
     <p><a href="{{.SideLink2}}">Activate Agent</a></p>
     <p><a href="{{.SideLink3}}">Deactivate Agent</a></p>
     {{ end }}
-  </div>
+
+{{ if .Agent }}
+<p class="h4">{{.UserName}} You are {{if .Online}}Online{{end}}{{if not .Online}}Offline{{end}}</p> 
+{{ if not .Online }}<p><a href="{{.SideLink1}}">Go Online</a></p>{{ end }}
+{{if .Online }}<p><a href="{{.SideLink2}}">Go Offline</a></p> {{ end }}
+{{ end }}
+</div>
   <div class="col-sm-8">
     {{block "tablepage" .}} {{end}}
     {{block "homepage" .}} {{end}}

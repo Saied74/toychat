@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/saied74/toychat/pkg/centerr"
 	"github.com/saied74/toychat/pkg/forms"
 	"github.com/saied74/toychat/pkg/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // TODO: these handlers might be weak with respect to nats transport error
@@ -22,7 +24,7 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	app.render(w, r, "home")
+	app.render(w, r, home)
 }
 
 func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -34,23 +36,26 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case GET:
-		app.render(w, r, "login")
+		app.render(w, r, login)
 		return
 	case POST:
 		err := r.ParseForm()
 		if err != nil {
 			app.clientError(w, http.StatusBadRequest, err)
 		}
-		app.td.Form = forms.NewForm(r.PostForm)
-		//authenticateUserR R stands for remote sends the data to the dbmgr over
-		//the nats connectoin to be validated.
-		table := app.table
-		role := app.role
-		email := app.td.Form.GetField("email")
-		pwd := app.td.Form.GetField("password")
-		id, err := models.AuthenticateUserR(table, role, email, pwd)
+		Form := forms.NewForm(r.PostForm)
+		person, err := models.AuthenticateUserR(app.table, app.role,
+			Form.GetField("email"))
 		if err != nil {
-			if errors.Is(err, broker.ErrInvalidCredentials) {
+			app.serverError(w, err)
+			return
+		}
+		app.infoLog.Printf("Person back in handler %v", person)
+		hashedPassword := person.HashedPassword
+		err = bcrypt.CompareHashAndPassword([]byte(hashedPassword),
+			[]byte(Form.GetField("password")))
+		if err != nil {
+			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 				app.td.Form.Errors.AddError("generic", "Email or Password is incorrect")
 				app.render(w, r, login)
 			} else {
@@ -58,9 +63,8 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		//RenewToken is used for security purpose for each state change.
 		app.sessionManager.RenewToken(r.Context())
-		app.sessionManager.Put(r.Context(), authenticatedUserID, id)
+		app.sessionManager.Put(r.Context(), authenticatedUserID, person.ID)
 		http.Redirect(w, r, home, http.StatusSeeOther)
 
 	default:
@@ -103,15 +107,19 @@ func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 		Form.MaxLength("email", 255)
 		Form.MatchPattern("email", forms.EmailRX)
 		Form.MinLength("password", 10)
-
 		if !Form.Valid() {
 			app.render(w, r, signup)
 			return
 		}
-		//once the form is validated (above), it is sent to the dbmgr over nats
-		//to be inserted into the database.
+		password := Form.GetField("password")
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+		if err != nil {
+			app.serverError(w, err)
+			return //note we are not returning any words so we can check for the error
+		}
+
 		err = models.InsertAdminR(app.table, app.nextRole, Form.GetField("name"),
-			Form.GetField("email"), Form.GetField("password"))
+			Form.GetField("email"), string(hashedPassword))
 		if err != nil {
 			centerr.ErrorLog.Printf("Fatal Error %v", err)
 			if errors.Is(err, broker.ErrDuplicateEmail) {
@@ -122,7 +130,6 @@ func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		//RenewToken is used for security purpose for each state change.
 		app.sessionManager.RenewToken(r.Context())
 		app.sessionManager.Put(r.Context(), "flash", "Your signup was successful, pleaselogin")
 		http.Redirect(w, r, app.redirect, http.StatusSeeOther)
@@ -211,13 +218,39 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 			app.render(w, r, signup)
 			return
 		}
+		email := Form.GetField("email")
+		pwd := Form.GetField("passwordOld")
+		person, err := models.AuthenticateUserR(app.table, app.role, email)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		hashedPassword := person.HashedPassword
+		err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(pwd))
+		if err != nil {
+			app.errorLog.Printf("Bcrypt err: %v", err)
+			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+				app.td.Form.Errors.AddError("generic", "Email or Password is incorrect")
+				app.render(w, r, login)
+			} else {
+				app.serverError(w, err)
+			}
+			return
+		}
+		password := Form.GetField("passwordNew")
+		hashedNewPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+		if err != nil {
+			app.serverError(w, err)
+			return //note we are not returning any words so we can check for the error
+		}
 		//once the form is validated (above), it is sent to the dbmgr over nats
 		//to be inserted into the database.
-		err = models.ChgPwdR(app.table, app.role, Form.GetField("email"),
-			Form.GetField("passwordNew"))
+		err = models.ChgPwdR(app.table, app.role, email, string(hashedNewPassword))
 		if err != nil {
+			app.infoLog.Printf("error from change pwd: %v", err)
 			app.render(w, r, "chgPwd")
-			app.serverError(w, err)
+			// app.serverError(w, err)
+
 			return
 		}
 		//RenewToken is used for security purpose for each state change.
@@ -231,9 +264,53 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) agentOnlineHandler(w http.ResponseWriter, r *http.Request) {
-	app.render(w, r, home)
+	err := app.pickPath(w, r)
+	if err != nil {
+		app.errorLog.Printf("bad path %s", r.URL.Path)
+		http.NotFound(w, r)
+		return
+	}
+	switch r.Method {
+	case GET:
+		app.td.Online = true
+		id := app.sessionManager.GetInt(r.Context(), authenticatedUserID)
+		if id == 0 {
+			app.serverError(w, fmt.Errorf("no session id"))
+		}
+		err := models.PutLine(app.table, app.role, id, true)
+		if err != nil {
+			app.serverError(w, err)
+		}
+		app.render(w, r, home)
+		return
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+	}
 }
 
 func (app *App) agentOfflineHandler(w http.ResponseWriter, r *http.Request) {
-	app.render(w, r, home)
+	err := app.pickPath(w, r)
+	if err != nil {
+		app.errorLog.Printf("bad path %s", r.URL.Path)
+		http.NotFound(w, r)
+		return
+	}
+	switch r.Method {
+	case GET:
+		app.td.Online = false
+		id := app.sessionManager.GetInt(r.Context(), authenticatedUserID)
+		if id == 0 {
+			app.serverError(w, fmt.Errorf("no session id"))
+		}
+		err := models.PutLine(app.table, app.role, id, false)
+		if err != nil {
+			app.serverError(w, err)
+		}
+		app.render(w, r, home)
+		return
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
+	}
 }

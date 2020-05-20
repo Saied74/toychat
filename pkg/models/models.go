@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -22,133 +23,180 @@ type UserModel struct {
 //The requested action is text encoded into the struct field as well.
 
 //InsertUserR gob encodes exchData and sends it to the dbmgr over nats
-func InsertUserR(table, name, email, password string) error {
-	exchData := broker.ExchData{
-		Name:     name,
-		Email:    email,
-		Password: password,
-		Action:   "insert",
-		Table:    table,
-	}
-	sendData, err := exchData.ToGob()
-	if err != nil {
-		return err
-	}
-	answer := chatConnection(string(sendData), "forDB")
-	exchData.FromGob(answer)
-	return exchData.DecodeErr()
-}
+// func InsertUserR(table, name, email, password string) error {
+// 	exchData := broker.ExchData{
+// 		Name:     name,
+// 		Email:    email,
+// 		Password: password,
+// 		Action:   "insert",
+// 		Table:    table,
+// 	}
+// 	sendData, err := exchData.ToGob()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	answer := chatConnection(string(sendData), "forDB")
+// 	exchData.FromGob(answer)
+// 	return exchData.DecodeErr()
+// }
 
 //InsertAdminR inserts an administrator into admins table that includes a role
 func InsertAdminR(table, role, name, email, password string) error {
-	exchData := broker.ExchData{
-		Name:     name,
-		Email:    email,
-		Password: password,
-		Action:   "insert",
-		Table:    table,
-		Role:     role,
+	exchange := broker.Exchange{
+		Table: table,
+		Put:   []string{"name", "email", "hashed_password", "role"},
+		Spec:  []string{},
+		People: []broker.Person{
+			broker.Person{
+				Name:           name,
+				Email:          email,
+				HashedPassword: password,
+				Role:           role,
+			},
+		},
+		Action: "insert",
 	}
-	sendData, err := exchData.ToGob()
+	sendData, err := exchange.ToGob()
 	if err != nil {
 		return err
 	}
 	answer := chatConnection(string(sendData), "forDB")
-	exchData.FromGob(answer)
-	return exchData.DecodeErr()
+	exchange.FromGob(answer)
+	return exchange.DecodeErr()
 }
 
 //AuthenticateUserR gob encodes exchData and sends it to the dbmgr over nats
-func AuthenticateUserR(table, role, email, password string) (int, error) {
-	exchData := broker.ExchData{
-		Email:    email,
-		Password: password,
-		Action:   "authenticate",
-		Table:    table,
-		Role:     role,
+func AuthenticateUserR(table, role, email string) (*broker.Person, error) {
+	exchange := broker.Exchange{
+		Table: table,
+		Put:   []string{},
+		Spec:  []string{"role", "email"},
+		People: []broker.Person{
+			broker.Person{Role: role, Email: email},
+		},
+		Action: "get",
 	}
-	sendData, err := exchData.ToGob()
+	sendData, err := exchange.ToGob()
 	if err != nil {
-		return 0, err
+		return &broker.Person{}, err
 	}
 	answer := chatConnection(string(sendData), "forDB")
-	exchData.FromGob(answer)
-	return exchData.ID, exchData.DecodeErr()
+	exchange.FromGob(answer)
+	length := len(exchange.People)
+	if length == 1 {
+		return &exchange.People[0], nil
+	}
+	return &broker.Person{}, fmt.Errorf("AuthenticateUserR brought back %d",
+		length)
 }
 
 //GetUserR gob encodes exchData and sends it to the dbmgr over nats
-func GetUserR(table string, id int) (*broker.ExchData, error) {
-	exchData := broker.ExchData{
-		ID:     id,
-		Action: "getuser",
-		Table:  table,
+func GetUserR(table string, id int) (*broker.Person, error) {
+	exchange := broker.Exchange{
+		Table: table,
+		Put:   []string{},
+		Spec:  []string{"id"},
+		People: []broker.Person{
+			broker.Person{ID: id},
+		},
+		Action: "get",
 	}
-	sendData, err := exchData.ToGob()
+	sendData, err := exchange.ToGob()
 	if err != nil {
-		return &broker.ExchData{}, err
+		return &broker.Person{}, err
 	}
 	answer := chatConnection(string(sendData), "forDB")
-	exchData.FromGob(answer)
-
-	return &exchData, exchData.DecodeErr()
+	exchange.FromGob(answer)
+	length := len(exchange.People)
+	if length == 1 {
+		return &exchange.People[0], nil
+	}
+	return &broker.Person{}, fmt.Errorf("GetUserR brought back %d",
+		length)
 }
 
 //GetByStatusR gets from the specified table a string agents by status (eg. active)
 func GetByStatusR(table, role string, status bool) (*[]broker.Person, error) {
-
-	exchData := broker.ExchData{
-		Action: "getByStatus",
-		Table:  table,
-		Active: status,
-		Role:   role,
+	exchange := broker.Exchange{
+		Table: table,
+		Put:   []string{},
+		Spec:  []string{"role", "active"},
+		People: []broker.Person{
+			broker.Person{Active: status, Role: role},
+		},
+		Action: "get",
 	}
 	// centerr.InfoLog.Println("got to getByStatusR", exchData)
-	sendData, err := exchData.ToGob()
+	sendData, err := exchange.ToGob()
 	if err != nil {
 		return nil, err
 	}
 	answer := chatConnection(string(sendData), "forDB")
 	centerr.InfoLog.Println("got back from chatConnection")
-	exchData.FromGob(answer)
+	exchange.FromGob(answer)
 	// centerr.InfoLog.Println("got to returning people", exchData.People)
-	return &exchData.People, exchData.DecodeErr()
+	return &exchange.People, exchange.DecodeErr()
 }
 
 //ActivationR activates or deactivates agent or admin as requested.
 func ActivationR(table, role string, people *[]broker.Person) error {
-	exchData := broker.ExchData{
-		Action: "doActivation",
+	exchange := broker.Exchange{
 		Table:  table,
-		Role:   role,
+		Put:    []string{"active"},
+		Spec:   []string{"id", "role"},
 		People: *people,
+		Action: "put",
 	}
-	sendData, err := exchData.ToGob()
+	sendData, err := exchange.ToGob()
 	if err != nil {
 		return err
 	}
 	answer := chatConnection(string(sendData), "forDB")
-	exchData.FromGob(answer)
+	exchange.FromGob(answer)
 	// centerr.InfoLog.Println("got to returning people", exchData.People)
-	return exchData.DecodeErr()
+	return exchange.DecodeErr()
 }
 
 //ChgPwdR sends a request to the dbmgr to change the pawword for the specified email
 func ChgPwdR(table, role, email, password string) error {
-	exchData := broker.ExchData{
-		Action:   "chgPwd",
-		Table:    table,
-		Role:     role,
-		Email:    email,
-		Password: password,
+	exchange := broker.Exchange{
+		Table: table,
+		Put:   []string{"hashed_password"},
+		Spec:  []string{"email", "role"},
+		People: []broker.Person{
+			broker.Person{HashedPassword: password, Email: email, Role: role},
+		},
+		Action: "put",
 	}
 
-	sendData, err := exchData.ToGob()
+	sendData, err := exchange.ToGob()
 	if err != nil {
 		return err
 	}
 	answer := chatConnection(string(sendData), "forDB")
-	exchData.FromGob(answer)
-	return exchData.DecodeErr()
+	exchange.FromGob(answer)
+	return exchange.DecodeErr()
+}
+
+//PutLine moves the agent offline and online
+func PutLine(table, role string, id int, online bool) error {
+	exchange := broker.Exchange{
+		Table: table,
+		Put:   []string{"online"},
+		Spec:  []string{"id", "role"},
+		People: []broker.Person{
+			broker.Person{Online: online, ID: id, Role: role},
+		},
+		Action: "put",
+	}
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchange.FromGob(answer)
+	return exchange.DecodeErr()
+
 }
 
 //sends string data to the far end, waits for the response and returns.

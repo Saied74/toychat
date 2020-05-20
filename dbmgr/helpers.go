@@ -1,9 +1,13 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"io"
 	"log"
+	"strings"
 
+	"github.com/go-sql-driver/mysql"
 	nats "github.com/nats-io/nats.go"
 	"github.com/saied74/toychat/pkg/broker"
 )
@@ -23,84 +27,126 @@ func getErrorLogger(out io.Writer) func() *log.Logger {
 	}
 }
 
-//recieves the message from the loop in the main goroutine and runs as a
-//goroutine itself.  First, it builds a copy of the struct and decode the
-//gob string that came over the wire.  there are three possible commands.
-//insert, authenticate, and getuser.  It performs these by calling the
-//database methods in the models file.  Since error types cannot be gob
-//encoded, it string encodes them so they can be sent over the wire and
-//decoded on the far side.
+//The interface to the dbmgr is through broker.Exchange object.  There are
+//three possible actions, put, get, and insert.  Once the gob data is decoded,
+//the corresponding function is called and the result is gob encoded and
+//returned through the nats mailbox.
+
 func (app *App) processDBRequests(msg *nats.Msg, conn *nats.Conn) {
 	var err error
-	var exchData = &broker.ExchData{}
-	err = exchData.FromGob(msg.Data)
+	var exchange = &broker.Exchange{}
+	err = exchange.FromGob(msg.Data)
 	if err != nil {
-		exchData.EncodeErr(err)
+		exchange.EncodeErr(err)
 	}
-	// log.Println("got to getByStatus zzzz", exchData.Action)
 	if err == nil {
-		switch exchData.Action {
+		switch exchange.Action {
+		case "get":
+			err = app.users.get(exchange)
+			exchange.EncodeErr(err)
+		case "put":
+			err = app.users.put(exchange)
+			exchange.EncodeErr(err)
 		case "insert":
-			name := exchData.Name
-			email := exchData.Email
-			password := exchData.Password
-			table := exchData.Table
-			role := exchData.Role
-			err := app.users.insertUser(table, role, name, email, password)
-			exchData.EncodeErr(err)
-
-		case "authenticate":
-			email := exchData.Email
-			password := exchData.Password
-			table := exchData.Table
-			role := exchData.Role
-			id, err := app.users.authenticateUser(table, role, email, password)
-			if err != nil {
-				// app.errorLog.Printf("in authenticate case after authentiateUser call %v",
-				// 	err)
-				exchData.EncodeErr(err)
-			} else {
-				exchData.ID = id
-				exchData.EncodeErr(err)
-			}
-		case "getuser":
-			id := exchData.ID
-			table := exchData.Table
-			exchData, err = app.users.getUser(table, id)
-			if err != nil {
-				exchData.EncodeErr(err)
-			} else {
-				exchData.EncodeErr(err)
-			}
-		case "getByStatus":
-			// log.Println("got to getByStatus xxx", exchData)
-			table := exchData.Table
-			status := exchData.Active
-			role := exchData.Role
-			exchData, err = app.users.getByStatus(table, role, status)
-			exchData.EncodeErr(err)
-		case "doActivation":
-			log.Println("in doActivation", exchData)
-			table := exchData.Table
-			people := exchData.People
-			err = app.users.activation(table, people)
-			exchData.EncodeErr(err)
-		case "chgPwd":
-			table := exchData.Table
-			role := exchData.Role
-			email := exchData.Email
-			password := exchData.Password
-			err = app.users.chgPwd(table, role, email, password)
-			log.Printf("error from db insert %v", err)
-			exchData.EncodeErr(err)
+			err = app.users.insert(exchange)
+			exchange.EncodeErr(err)
 		default:
-			exchData.EncodeErr(err)
+			exchange.EncodeErr(err)
 		}
 	}
-	g, err := exchData.ToGob()
+	g, err := exchange.ToGob()
 	if err != nil {
 		conn.Publish(msg.Reply, []byte{})
 	} else {
 		conn.Publish(msg.Reply, g)
 	}
+}
+
+type userModel struct {
+	dB *sql.DB
+}
+
+var allCol = []string{"id", "name", "email", "hashed_password", "created",
+	"role", "active", "online"}
+
+func (m *userModel) insert(e *broker.Exchange) error {
+	stmt := `INSERT INTO ` + e.Table +
+		` (name, email, hashed_password, created, role) VALUES(?, ?, ?, UTC_TIMESTAMP(), ?)`
+	for _, p := range e.People {
+		_, err := m.dB.Exec(stmt, p.Name, p.Email, p.HashedPassword, p.Role)
+		if err != nil {
+			var mySQLError *mysql.MySQLError
+			if errors.As(err, &mySQLError) {
+				if mySQLError.Number == 1062 &&
+					strings.Contains(mySQLError.Message, "users_uc_email") {
+					return broker.ErrDuplicateEmail
+				}
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *userModel) get(e *broker.Exchange) error {
+	cond := e.Specify()
+	stmt := buildGetStmt(e.Table, e.Spec, allCol)
+	log.Printf("Stmt: %s", stmt)
+	e.People = []broker.Person{}
+	for _, c := range cond {
+		log.Printf("Condition: %v", c)
+		rows, err := m.dB.Query(stmt, c...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var p = &broker.Person{}
+			err := rows.Scan(&p.ID, &p.Name, &p.Email, &p.HashedPassword, &p.Created,
+				&p.Role, &p.Active, &p.Online)
+			if err != nil {
+				return err
+			}
+			e.People = append(e.People, *p)
+		}
+	}
+	log.Printf("exchange %v", e)
+	return nil
+}
+
+func (m *userModel) put(e *broker.Exchange) error {
+	cond := e.Specify()
+	stmt := buildPutStmt(e.Table, e.Put, e.Spec)
+	log.Printf("put statement: %s", stmt)
+	for _, c := range cond {
+		log.Printf("put condition: %v", cond)
+		_, err := m.dB.Exec(stmt, c...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildGetStmt(table string, give, get []string) string {
+	stmt := "SELECT "
+	getFields := strings.Join(get[:], ", ")
+	stmt += getFields
+	stmt += " FROM " + table + " WHERE "
+	giveFields := strings.Join(give[:], " = ? AND ")
+	stmt += giveFields
+	stmt += " = ?"
+	return stmt
+}
+
+func buildPutStmt(table string, put, spec []string) string {
+	stmt := "UPDATE " + table + " SET "
+	putFields := strings.Join(put[:], " = ? AND ")
+	stmt += putFields + " = ?"
+	stmt += " WHERE "
+	specFields := strings.Join(spec[:], " = ? AND ")
+	stmt += specFields
+	stmt += " = ?"
+	return stmt
+
 }

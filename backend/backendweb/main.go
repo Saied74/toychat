@@ -53,6 +53,7 @@ type templateData struct {
 	Admin     bool   //role admin = true
 	Agent     bool   // role agent= true
 	Active    bool   //active or not
+	Online    bool   //Agent online or offline
 	Table     *[]broker.Person
 	Form      *forms.FormData
 	UserName  string
@@ -153,7 +154,7 @@ func (app *App) routes() *http.ServeMux {
 	mux.HandleFunc(agentLogin, app.loginHandler)
 	mux.HandleFunc(agentChgPwd, app.requireAuthentication(app.changePasswordHandler))
 	mux.HandleFunc(agentLogout, app.logoutHandler)
-	mux.HandleFunc("/agent/online", app.requireAuthentication(app.agentOnlineHandler))
-	mux.HandleFunc("/agent/offline", app.requireAuthentication(app.agentOfflineHandler))
+	mux.HandleFunc(agentOnline, app.requireAuthentication(app.agentOnlineHandler))
+	mux.HandleFunc(agentOffline, app.requireAuthentication(app.agentOfflineHandler))
 	return mux
 }
