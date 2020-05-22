@@ -17,7 +17,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/saied74/toychat/pkg/broker"
 	"github.com/saied74/toychat/pkg/forms"
-	"github.com/saied74/toychat/pkg/models"
 )
 
 //so if the string is used in new packages, it remains privat for this app.
@@ -25,13 +24,18 @@ type contextKey string
 
 const contextKeyIsAuthenticated = contextKey("isAuthenticated")
 
+//UserModel wraps the sql.DB connections
+type UserModel struct {
+	DB *sql.DB
+}
+
 //App struct is for injecting data into the handlers and supporting methods.
 type App struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
 	cache          map[string]*template.Template
 	sessionManager *scs.SessionManager
-	users          *models.UserModel
+	users          *UserModel
 	td             *templateData
 	table          string
 	role           string
@@ -86,7 +90,7 @@ func main() {
 		infoLog:        infoLog(),
 		errorLog:       errorLog(),
 		sessionManager: scs.New(),
-		users:          &models.UserModel{DB: db},
+		users:          &UserModel{DB: db},
 		td: &templateData{
 			Form: &forms.FormData{
 				Fields: url.Values{},

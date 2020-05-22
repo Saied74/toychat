@@ -78,7 +78,7 @@ func (m *userModel) insert(e *broker.Exchange) error {
 			var mySQLError *mysql.MySQLError
 			if errors.As(err, &mySQLError) {
 				if mySQLError.Number == 1062 &&
-					strings.Contains(mySQLError.Message, "users_uc_email") {
+					strings.Contains(mySQLError.Message, e.Table+"_uc_email") {
 					return broker.ErrDuplicateEmail
 				}
 			}
@@ -91,10 +91,8 @@ func (m *userModel) insert(e *broker.Exchange) error {
 func (m *userModel) get(e *broker.Exchange) error {
 	cond := e.Specify()
 	stmt := buildGetStmt(e.Table, e.Spec, allCol)
-	log.Printf("Stmt: %s", stmt)
 	e.People = []broker.Person{}
 	for _, c := range cond {
-		log.Printf("Condition: %v", c)
 		rows, err := m.dB.Query(stmt, c...)
 		if err != nil {
 			return err
@@ -105,12 +103,14 @@ func (m *userModel) get(e *broker.Exchange) error {
 			err := rows.Scan(&p.ID, &p.Name, &p.Email, &p.HashedPassword, &p.Created,
 				&p.Role, &p.Active, &p.Online)
 			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return broker.ErrNoRecord
+				}
 				return err
 			}
 			e.People = append(e.People, *p)
 		}
 	}
-	log.Printf("exchange %v", e)
 	return nil
 }
 

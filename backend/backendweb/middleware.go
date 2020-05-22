@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/justinas/nosurf"
 	"github.com/saied74/toychat/pkg/broker"
-	"github.com/saied74/toychat/pkg/models"
 )
 
 type plainHandler func(w http.ResponseWriter, r *http.Request)
@@ -80,7 +80,11 @@ func (app *App) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		usr, err := models.GetUserR(app.table, app.sessionManager.GetInt(r.Context(),
+		path := strings.Split(r.URL.Path, "/")
+		if len(path) < 3 {
+			app.errorLog.Printf("bad path %s, short string", r.URL.Path)
+		}
+		usr, err := broker.GetUserR(app.table, app.sessionManager.GetInt(r.Context(),
 			authenticatedUserID))
 		if errors.Is(err, broker.ErrNoRecord) || !usr.Active {
 			app.sessionManager.Remove(r.Context(), authenticatedUserID)
@@ -89,6 +93,20 @@ func (app *App) authenticate(next http.Handler) http.Handler {
 		} else if err != nil {
 			app.serverError(w, err)
 			return
+		}
+		switch path[1] {
+		case super:
+			if usr.Role != "superadmin" {
+				app.sessionManager.Remove(r.Context(), authenticatedUserID)
+			}
+		case admin:
+			if usr.Role != admin {
+				app.sessionManager.Remove(r.Context(), authenticatedUserID)
+			}
+		case agent:
+			if usr.Role != agent {
+				app.sessionManager.Remove(r.Context(), authenticatedUserID)
+			}
 		}
 		ctx := context.WithValue(r.Context(), contextKeyIsAuthenticated, true)
 		next.ServeHTTP(w, r.WithContext(ctx))

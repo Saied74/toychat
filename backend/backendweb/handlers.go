@@ -10,13 +10,14 @@ import (
 	"github.com/saied74/toychat/pkg/broker"
 	"github.com/saied74/toychat/pkg/centerr"
 	"github.com/saied74/toychat/pkg/forms"
-	"github.com/saied74/toychat/pkg/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // TODO: these handlers might be weak with respect to nats transport error
 
 //much of the commmon work is done in render, addDefaultData and middlewares
+
+//============================ Home ================================
 func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -27,6 +28,7 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	app.render(w, r, home)
 }
 
+//============================ Login ================================
 func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -44,14 +46,23 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 			app.clientError(w, http.StatusBadRequest, err)
 		}
 		Form := forms.NewForm(r.PostForm)
-		person, err := models.AuthenticateUserR(app.table, app.role,
+		person, err := broker.AuthenticateUserR(app.table, app.role,
 			Form.GetField("email"))
 		if err != nil {
-			app.serverError(w, err)
+			if errors.Is(err, broker.ErrNoRecord) {
+				app.td.Form.Errors.AddError("generic", "No such a record was found")
+				app.render(w, r, login)
+			} else {
+				app.serverError(w, err)
+			}
 			return
 		}
-		app.infoLog.Printf("Person back in handler %v", person)
 		hashedPassword := person.HashedPassword
+		if len(hashedPassword) != 60 {
+			app.td.Form.Errors.AddError("generic", "No such a record was found")
+			app.render(w, r, login)
+			return
+		}
 		err = bcrypt.CompareHashAndPassword([]byte(hashedPassword),
 			[]byte(Form.GetField("password")))
 		if err != nil {
@@ -73,6 +84,7 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//============================ Logout ================================
 func (app *App) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -86,6 +98,7 @@ func (app *App) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, app.redirect, http.StatusSeeOther)
 }
 
+//======================== Add (Admin or Agent) ===============================
 func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -101,29 +114,27 @@ func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			app.clientError(w, http.StatusBadRequest, err)
 		}
-		Form := forms.NewForm(r.PostForm)
-		Form.FieldRequired("name", "email", "password")
-		Form.MaxLength("name", 255)
-		Form.MaxLength("email", 255)
-		Form.MatchPattern("email", forms.EmailRX)
-		Form.MinLength("password", 10)
-		if !Form.Valid() {
+		app.td.Form = forms.NewForm(r.PostForm)
+		app.td.Form.FieldRequired("name", "email", "password")
+		app.td.Form.MaxLength("name", 256)
+		app.td.Form.MaxLength("email", 256)
+		app.td.Form.MatchPattern("email", forms.EmailRX)
+		app.td.Form.MinLength("password", 10)
+		if !app.td.Form.Valid() {
 			app.render(w, r, signup)
 			return
 		}
-		password := Form.GetField("password")
+		password := app.td.Form.GetField("password")
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 		if err != nil {
 			app.serverError(w, err)
 			return //note we are not returning any words so we can check for the error
 		}
-
-		err = models.InsertAdminR(app.table, app.nextRole, Form.GetField("name"),
-			Form.GetField("email"), string(hashedPassword))
+		err = broker.InsertAdminR(app.table, app.nextRole, app.td.Form.GetField("name"),
+			app.td.Form.GetField("email"), string(hashedPassword))
 		if err != nil {
-			centerr.ErrorLog.Printf("Fatal Error %v", err)
 			if errors.Is(err, broker.ErrDuplicateEmail) {
-				Form.Errors.AddError("email", "Address is already in use")
+				app.td.Form.Errors.AddError("email", "Address is already in use")
 				app.render(w, r, signup)
 			} else {
 				app.serverError(w, err)
@@ -140,6 +151,7 @@ func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//======================= Activation (admin or agent) ==========================
 func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -150,19 +162,35 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case GET:
 		//gwt admins from the admins table with active status as false
-		people, err := models.GetByStatusR("admins", app.nextRole, !app.td.Active)
+		people, err := broker.GetByStatusR("admins", app.nextRole, !app.td.Active)
+		app.infoLog.Printf("in activation get err %v", err)
 		if err != nil {
-			centerr.ErrorLog.Printf("Fatal Error %v", err)
-			app.serverError(w, err)
+			if errors.Is(err, broker.ErrNoRecord) {
+				app.td.Table = &[]broker.Person{}
+			} else {
+				app.serverError(w, err)
+				return
+			}
 		}
-		app.td.Table = people
+		if len(*people) == 1 {
+			person := *people
+			if len(person[0].HashedPassword) != 60 {
+				app.td.Table = &[]broker.Person{}
+			} else {
+				app.td.Table = people
+			}
+		} else {
+			app.td.Table = people
+		}
+		app.infoLog.Printf("in activation get %v", people)
 		app.render(w, r, table)
+
 	case POST:
 		err := r.ParseForm()
 		if err != nil {
 			app.clientError(w, http.StatusBadRequest, err)
 		}
-		people, err := models.GetByStatusR("admins", app.nextRole, !app.td.Active)
+		people, err := broker.GetByStatusR("admins", app.nextRole, !app.td.Active)
 		if err != nil {
 			centerr.ErrorLog.Printf("Fatal Error %v", err)
 			app.serverError(w, err)
@@ -173,16 +201,17 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 			for key := range r.Form {
 				if key == candidate {
 					person.Active = app.td.Active
-					centerr.InfoLog.Println("person.Active", person.Active)
+					app.infoLog.Println("person.Active", person.Active)
 					newPeople = append(newPeople, person)
 				}
 			}
 		}
-		err = models.ActivationR("admins", app.nextRole, &newPeople)
+		err = broker.ActivationR("admins", app.nextRole, &newPeople)
 		if err != nil {
-			centerr.ErrorLog.Printf("Fatal Error %v", err)
+			app.infoLog.Printf("Fatal Error %v", err)
 			app.serverError(w, err)
 		}
+		app.errorLog.Printf("Activation: %v", newPeople)
 		app.sessionManager.RenewToken(r.Context())
 		http.Redirect(w, r, app.td.Home, http.StatusSeeOther)
 	default:
@@ -191,6 +220,7 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//====================== Change Password (Admin or Agent) ======================
 func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -207,37 +237,47 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			app.clientError(w, http.StatusBadRequest, err)
 		}
-		centerr.InfoLog.Println("post form", r.PostForm)
-		Form := forms.NewForm(r.PostForm)
-		Form.FieldRequired("email", "passwordOld", "passwordNew")
-		Form.MaxLength("email", 255)
-		Form.MatchPattern("email", forms.EmailRX)
-		Form.MinLength("passwordOld", 10)
-		Form.MinLength("passwordNew", 10)
-		if !Form.Valid() {
-			app.render(w, r, signup)
+		app.td.Form = forms.NewForm(r.PostForm)
+		app.td.Form.FieldRequired("email", "passwordOld", "passwordNew")
+		app.td.Form.MaxLength("email", 256)
+		app.td.Form.MatchPattern("email", forms.EmailRX)
+		app.td.Form.MinLength("passwordNew", 10)
+		app.td.Form.MinLength("passwordOld", 10)
+		if !app.td.Form.Valid() {
+			app.render(w, r, "chgPwd")
 			return
 		}
-		email := Form.GetField("email")
-		pwd := Form.GetField("passwordOld")
-		person, err := models.AuthenticateUserR(app.table, app.role, email)
+		email := app.td.Form.GetField("email")
+		pwd := app.td.Form.GetField("passwordOld")
+		app.errorLog.Printf("table: %s, role: %s, email: %s", app.table, app.role, email)
+		person, err := broker.AuthenticateUserR(app.table, app.role, email)
 		if err != nil {
 			app.serverError(w, err)
 			return
 		}
 		hashedPassword := person.HashedPassword
+		app.infoLog.Printf("hashed password: %s", hashedPassword)
+		if len(hashedPassword) != 60 {
+			app.td.Form.Errors.AddError("generic", "No such a record was found")
+			app.render(w, r, "chgPwd")
+			return
+		}
 		err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(pwd))
 		if err != nil {
 			app.errorLog.Printf("Bcrypt err: %v", err)
 			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 				app.td.Form.Errors.AddError("generic", "Email or Password is incorrect")
-				app.render(w, r, login)
+				app.errorLog.Printf("Error from bcypt match 1 %v", err)
+				app.render(w, r, "chgPwd")
+
 			} else {
+				app.errorLog.Printf("Error from bcypt match 2 %v", err)
 				app.serverError(w, err)
+
 			}
 			return
 		}
-		password := Form.GetField("passwordNew")
+		password := app.td.Form.GetField("passwordNew")
 		hashedNewPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 		if err != nil {
 			app.serverError(w, err)
@@ -245,24 +285,27 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		//once the form is validated (above), it is sent to the dbmgr over nats
 		//to be inserted into the database.
-		err = models.ChgPwdR(app.table, app.role, email, string(hashedNewPassword))
+		err = broker.ChgPwdR(app.table, app.role, email, string(hashedNewPassword))
 		if err != nil {
 			app.infoLog.Printf("error from change pwd: %v", err)
-			app.render(w, r, "chgPwd")
-			// app.serverError(w, err)
-
+			app.td.Form.Errors.AddError("generic", "Change password fail, try again")
+			app.render(w, r, home)
 			return
 		}
 		//RenewToken is used for security purpose for each state change.
 		app.sessionManager.RenewToken(r.Context())
 		app.sessionManager.Put(r.Context(), "flash", "Your password was changed, pleaselogin")
-		http.Redirect(w, r, app.redirect, http.StatusSeeOther)
+		app.td.Msg = "You changed your password, please re-login"
+		app.render(w, r, login)
+
+		// http.Redirect(w, r, app.redirect, http.StatusSeeOther)
 	default:
 		w.WriteHeader(http.StatusNotImplemented)
 		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
 	}
 }
 
+//============================== Agent online ================================
 func (app *App) agentOnlineHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -277,7 +320,7 @@ func (app *App) agentOnlineHandler(w http.ResponseWriter, r *http.Request) {
 		if id == 0 {
 			app.serverError(w, fmt.Errorf("no session id"))
 		}
-		err := models.PutLine(app.table, app.role, id, true)
+		err := broker.PutLine(app.table, app.role, id, true)
 		if err != nil {
 			app.serverError(w, err)
 		}
@@ -289,6 +332,7 @@ func (app *App) agentOnlineHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//============================== Agent onffline ================================
 func (app *App) agentOfflineHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
@@ -303,7 +347,7 @@ func (app *App) agentOfflineHandler(w http.ResponseWriter, r *http.Request) {
 		if id == 0 {
 			app.serverError(w, fmt.Errorf("no session id"))
 		}
-		err := models.PutLine(app.table, app.role, id, false)
+		err := broker.PutLine(app.table, app.role, id, false)
 		if err != nil {
 			app.serverError(w, err)
 		}

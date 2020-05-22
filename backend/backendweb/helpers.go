@@ -7,13 +7,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/justinas/nosurf"
 	nats "github.com/nats-io/nats.go"
-	"github.com/saied74/toychat/pkg/models"
+	"github.com/saied74/toychat/pkg/broker"
+	"github.com/saied74/toychat/pkg/forms"
 )
 
 //These two loggers are written so one can pass other writer opbjects to them
@@ -51,6 +53,7 @@ func (app *App) clientError(w http.ResponseWriter, status int, err error) {
 }
 
 func (app *App) pickPath(w http.ResponseWriter, r *http.Request) error {
+	app.initTD()
 	path := strings.Split(r.URL.Path, "/")
 	if len(path) < 3 {
 		return fmt.Errorf("bad path %s, short string", r.URL.Path)
@@ -144,6 +147,15 @@ func (app *App) buildAgent() {
 	app.td.Msg = loginMsg
 }
 
+func (app *App) initTD() {
+	app.td = &templateData{
+		Form: &forms.FormData{
+			Fields: url.Values{},
+			Errors: forms.ErrOrs{},
+		},
+	}
+}
+
 //templates are cashed by name to avoid repeated disk access.
 func newTemplateCache(tmpls map[string][]string) map[string]*template.Template {
 	tc := map[string]*template.Template{}
@@ -175,7 +187,7 @@ func (app *App) addDefaultData(td *templateData, r *http.Request) (*templateData
 	td.LoggedIn = app.isAuthenticated(r)
 	id := app.sessionManager.GetInt(r.Context(), authenticatedUserID)
 	if td.LoggedIn {
-		usr, err := models.GetUserR("admins", id)
+		usr, err := broker.GetUserR("admins", id)
 		if err != nil {
 			return nil, err
 		}

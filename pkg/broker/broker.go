@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"github.com/saied74/toychat/pkg/centerr"
 )
 
 type errMsg int
@@ -64,25 +67,6 @@ type Exchange struct {
 	Err     string
 }
 
-//ExchData for data exchange in gob format
-type ExchData struct {
-	ID             int
-	Name           string
-	Email          string
-	Password       string
-	Created        time.Time
-	Active         bool //true is active, false is inactive
-	HashedPassword []byte
-	Authenticated  bool
-	Action         string //authenticate, insert, and getuser are permitted actions
-	ErrType        errMsg
-	Err            string
-	Table          string
-	Role           string   //one of superadmin, admin, agent
-	People         []Person //returns admins or agents by status (e.g. active)
-	RowCnt         int      //should be the same as legnth of people field
-}
-
 //Specify builds inspec on the side of the gob decoding.  It uses people data
 //and put and spec slices to build the items that need to be ither put into the
 //database or are conditions of the database entry (WHERE condition.)
@@ -132,17 +116,6 @@ func (e *Exchange) Specify() [][]interface{} {
 	return inspec
 }
 
-//ToGob gob encodes ExchData and returns a byte slice
-func (e *ExchData) ToGob() ([]byte, error) {
-	b := &bytes.Buffer{}
-	enc := gob.NewEncoder(b)
-	err := enc.Encode(*e)
-	if err != nil {
-		return []byte{}, fmt.Errorf("failed gob Encode %v", err)
-	}
-	return b.Bytes(), nil
-}
-
 //ToGob encodes Exchange type data to be shipped over nats
 func (e *Exchange) ToGob() ([]byte, error) {
 	b := &bytes.Buffer{}
@@ -152,18 +125,6 @@ func (e *Exchange) ToGob() ([]byte, error) {
 		return []byte{}, fmt.Errorf("failed gob Encode %v", err)
 	}
 	return b.Bytes(), nil
-}
-
-//FromGob decodes a gob byte slice into ExchData
-func (e *ExchData) FromGob(g []byte) error {
-	b := &bytes.Buffer{}
-	b.Write(g)
-	dec := gob.NewDecoder(b)
-	err := dec.Decode(e)
-	if err != nil {
-		return fmt.Errorf("failed screen gob decode %v", err)
-	}
-	return nil
 }
 
 //FromGob decides Exchange typed shipped over nats
@@ -177,28 +138,6 @@ func (e *Exchange) FromGob(g []byte) error {
 	}
 	return nil
 }
-
-//EncodeErr encodes the error to avoid having to ship error by encoding it as
-//gob (per Google group error type does not work with gob)
-// func (e *ExchData) EncodeErr(err error) {
-// 	if err == nil {
-// 		e.ErrType = NoErr
-// 		return
-// 	}
-// 	if errors.Is(err, ErrNoRecord) {
-// 		e.ErrType = NoRecord
-// 		return
-// 	}
-// 	if errors.Is(err, ErrInvalidCredentials) {
-// 		e.ErrType = InvalidCreds
-// 		return
-// 	}
-// 	if errors.Is(err, ErrDuplicateEmail) {
-// 		return
-// 	}
-// 	e.ErrType = ErrZero
-// 	e.Err = fmt.Sprintf("%v", err)
-// }
 
 //EncodeErr encodes err for transmission over gob encoded medium.
 //errors don't gob encode.
@@ -218,28 +157,6 @@ func (e *Exchange) EncodeErr(err error) {
 	e.Err = fmt.Sprintf("%v", err)
 }
 
-//DecodeErr tries to decode the error out of the gob encoding process to its
-//original form as best as it can especially preserving the three errors defined
-//above
-// func (e *ExchData) DecodeErr() error {
-// 	switch e.ErrType {
-// 	case NoErr:
-// 		return nil
-// 	case ErrZero:
-// 		if e.Err == "" {
-// 			return ErrNoRecord
-// 		}
-// 		return fmt.Errorf(e.Err)
-// 	case NoRecord:
-// 		return ErrNoRecord
-// 	case InvalidCreds:
-// 		return ErrInvalidCredentials
-// 	case DuplicateMail:
-// 		return ErrDuplicateEmail
-// 	}
-// 	return fmt.Errorf("error decoder failed %d", int(e.ErrType))
-// }
-
 //DecodeErr decodes error shipped over gob encoded medium.
 func (e *Exchange) DecodeErr() error {
 	switch e.ErrType {
@@ -258,4 +175,189 @@ func (e *Exchange) DecodeErr() error {
 		return ErrDuplicateEmail
 	}
 	return fmt.Errorf("error decoder failed %d", int(e.ErrType))
+}
+
+//InsertAdminR inserts an administrator into admins table that includes a role
+func InsertAdminR(table, role, name, email, password string) error {
+	exchange := Exchange{
+		Table: table,
+		Put:   []string{"name", "email", "hashed_password", "role"},
+		Spec:  []string{},
+		People: []Person{
+			Person{
+				Name:           name,
+				Email:          email,
+				HashedPassword: password,
+				Role:           role,
+			},
+		},
+		Action: "insert",
+	}
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchange.FromGob(answer)
+	return exchange.DecodeErr()
+}
+
+//AuthenticateUserR gob encodes exchData and sends it to the dbmgr over nats
+func AuthenticateUserR(table, role, email string) (*Person, error) {
+	exchange := Exchange{
+		Table: table,
+		Put:   []string{},
+		Spec:  []string{"role", "email"},
+		People: []Person{
+			Person{Role: role, Email: email},
+		},
+		Action: "get",
+	}
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return &Person{}, err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchange.FromGob(answer)
+	err = exchange.DecodeErr()
+	if err != nil {
+		return &Person{}, err
+	}
+	length := len(exchange.People)
+	if length == 1 {
+		return &exchange.People[0], nil
+	}
+	return &Person{}, fmt.Errorf("AuthenticateUserR brought back %d records",
+		length)
+}
+
+//GetUserR gob encodes exchData and sends it to the dbmgr over nats
+func GetUserR(table string, id int) (*Person, error) {
+	exchange := Exchange{
+		Table: table,
+		Put:   []string{},
+		Spec:  []string{"id"},
+		People: []Person{
+			Person{ID: id},
+		},
+		Action: "get",
+	}
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return &Person{}, err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchange.FromGob(answer)
+	length := len(exchange.People)
+	if length == 1 {
+		return &exchange.People[0], nil
+	}
+	return &Person{}, fmt.Errorf("GetUserR brought back %d",
+		length)
+}
+
+//GetByStatusR gets from the specified table a string agents by status (eg. active)
+func GetByStatusR(table, role string, status bool) (*[]Person, error) {
+	exchange := Exchange{
+		Table: table,
+		Put:   []string{},
+		Spec:  []string{"role", "active"},
+		People: []Person{
+			Person{Active: status, Role: role},
+		},
+		Action: "get",
+	}
+	// centerr.InfoLog.Println("got to getByStatusR", exchData)
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return nil, err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	centerr.InfoLog.Println("got back from chatConnection")
+	exchange.FromGob(answer)
+	// centerr.InfoLog.Println("got to returning people", exchData.People)
+	return &exchange.People, exchange.DecodeErr()
+}
+
+//ActivationR activates or deactivates agent or admin as requested.
+func ActivationR(table, role string, people *[]Person) error {
+	exchange := Exchange{
+		Table:  table,
+		Put:    []string{"active"},
+		Spec:   []string{"id", "role"},
+		People: *people,
+		Action: "put",
+	}
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchange.FromGob(answer)
+	// centerr.InfoLog.Println("got to returning people", exchData.People)
+	return exchange.DecodeErr()
+}
+
+//ChgPwdR sends a request to the dbmgr to change the pawword for the specified email
+func ChgPwdR(table, role, email, password string) error {
+	exchange := Exchange{
+		Table: table,
+		Put:   []string{"hashed_password"},
+		Spec:  []string{"email", "role"},
+		People: []Person{
+			Person{HashedPassword: password, Email: email, Role: role},
+		},
+		Action: "put",
+	}
+
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchange.FromGob(answer)
+	return exchange.DecodeErr()
+}
+
+//PutLine moves the agent offline and online
+func PutLine(table, role string, id int, online bool) error {
+	exchange := Exchange{
+		Table: table,
+		Put:   []string{"online"},
+		Spec:  []string{"id", "role"},
+		People: []Person{
+			Person{Online: online, ID: id, Role: role},
+		},
+		Action: "put",
+	}
+	sendData, err := exchange.ToGob()
+	if err != nil {
+		return err
+	}
+	answer := chatConnection(string(sendData), "forDB")
+	exchange.FromGob(answer)
+	return exchange.DecodeErr()
+
+}
+
+//sends string data to the far end, waits for the response and returns.
+//for chat and mat, the data is string.  For dbmgr, the data is a struct.
+//which is gob encoded before it is sent.  Gob encoder is in the broker pkg.
+// TODO: find a way to build a nats connecton pool like the MySQL connection
+//pool to speed up transactions.
+func chatConnection(matValue, forCM string) []byte {
+	var err error
+
+	nc1, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		centerr.ErrorLog.Printf("in chatConnection connecting error %v", err)
+	}
+	defer nc1.Close()
+	msg, err := nc1.Request(forCM, []byte(matValue), 2*time.Second)
+	if err != nil {
+		centerr.ErrorLog.Printf("in chatConnection %s request did not complete %v",
+			forCM, err)
+		return []byte{}
+	}
+	return msg.Data
 }
