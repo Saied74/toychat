@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -156,11 +157,43 @@ func (app *App) initTD() {
 	}
 }
 
+type tmData map[string][]string
+
+type tmDataer interface {
+	tmpData() (*tmData, error)
+}
+
+func (inTM tmData) tmpData() (*tmData, error) {
+	in := inTM
+	var out = tmData{}
+	for key, files := range in {
+		strList := []string{}
+		for _, file := range files {
+			tmStr, err := ioutil.ReadFile(file)
+			if err != nil {
+				return &tmData{}, err
+			}
+			strList = append(strList, string(tmStr))
+		}
+		out[key] = strList
+	}
+	return &out, nil
+}
+
 //templates are cashed by name to avoid repeated disk access.
-func newTemplateCache(tmpls map[string][]string) map[string]*template.Template {
+func newTemplateCache(tmpl tmDataer) map[string]*template.Template {
 	tc := map[string]*template.Template{}
-	for key, files := range tmpls {
-		t := template.Must(template.ParseFiles(files...))
+	var t *template.Template
+	tmptr, err := tmpl.tmpData()
+	if err != nil {
+		log.Fatal(err)
+	}
+	tm := *tmptr
+	for key, data := range tm {
+		t = template.New(key)
+		for _, datum := range data {
+			t = template.Must(t.Parse(datum))
+		}
 		tc[key] = t
 	}
 	return tc
@@ -182,7 +215,6 @@ func (app *App) addDefaultData(td *templateData, r *http.Request) (*templateData
 	if td == nil {
 		td = &templateData{}
 	}
-	// td.Home = "home"
 	td.Flash = app.sessionManager.PopString(r.Context(), "flash")
 	td.LoggedIn = app.isAuthenticated(r)
 	id := app.sessionManager.GetInt(r.Context(), authenticatedUserID)

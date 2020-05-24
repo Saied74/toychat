@@ -44,7 +44,7 @@ const (
 	agentOffline        = "/agent/offline"
 )
 
-var allTmplFiles = map[string][]string{
+var allTmplFiles = tmData{
 	"home": []string{
 		filepath.Join(os.Getenv("GOPATH"), "src/toychat/backend/backendviews/base.tmpl"),
 		filepath.Join(os.Getenv("GOPATH"), "src/toychat/backend/backendviews/home.tmpl"),

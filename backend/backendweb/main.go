@@ -41,6 +41,8 @@ type App struct {
 	role           string
 	nextRole       string
 	redirect       string
+	// render				func(w http.ResponseWriter, r *http.Request, name string)
+
 }
 
 type templateData struct {
@@ -85,6 +87,8 @@ func main() {
 		errorLog().Fatal(err)
 	}
 	defer db.Close()
+
+	// var allTmplFiles tmDataer
 
 	app := &App{
 		infoLog:        infoLog(),
