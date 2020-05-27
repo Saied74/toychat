@@ -54,7 +54,7 @@ func (app *App) recoverPanic(next http.Handler) http.Handler {
 
 func (app *App) requireAuthentication(next plainHandler) plainHandler {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !app.isAuthenticated(r) {
+		if !isAuth(r) {
 			http.Redirect(w, r, app.td.Login, http.StatusSeeOther)
 			return
 		}

@@ -41,8 +41,6 @@ type App struct {
 	role           string
 	nextRole       string
 	redirect       string
-	// render				func(w http.ResponseWriter, r *http.Request, name string)
-
 }
 
 type templateData struct {
@@ -103,7 +101,6 @@ func main() {
 		},
 		cache: newTemplateCache(allTmplFiles),
 	}
-
 	//at some point when different applicaitons are running on different servers
 	//the database for each applicaiton needs to be seperated.
 	app.sessionManager.Store = mysqlstore.New(db)

@@ -3,9 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/alexedwards/scs/v2"
+	"github.com/saied74/toychat/pkg/broker"
 )
 
 var testSupertd = templateData{
@@ -259,24 +265,119 @@ func TestNewTemplateCashe(t *testing.T) {
 
 func TestIsAuthenticated(t *testing.T) {
 	var isA bool
-	app := App{}
 	r := httptest.NewRequest("GET", "/super/home", nil)
-	isA = app.isAuthenticated(r)
+	isA = isAuthenticated(r)
 	if isA {
 		t.Errorf("no context, expecting false, got %v", isA)
 	}
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, contextKeyIsAuthenticated, true)
 	r = r.WithContext(ctx)
-	isA = app.isAuthenticated(r)
+	isA = isAuthenticated(r)
 	if !isA {
 		t.Errorf("true context, expecting true, got %v", isA)
 	}
 	ctx = context.WithValue(ctx, contextKeyIsAuthenticated, false)
 	r = r.WithContext(ctx)
-	isA = app.isAuthenticated(r)
+	isA = isAuthenticated(r)
 	if isA {
 		t.Errorf("false context, expecting false, got %v", isA)
 	}
+}
 
+func TestAddDefaultData(t *testing.T) {
+	defTest := []struct {
+		token string
+		name  string
+		path  string
+		a     bool
+		msg   string
+		td    *templateData
+	}{
+		{
+			token: "a token",
+			name:  "cocaine mitch",
+			path:  "/super/home",
+			a:     true,
+			msg:   "gold",
+			td:    &templateData{},
+		},
+		{
+			token: "old token",
+			name:  "",
+			path:  "/admin/home",
+			a:     false,
+			msg:   "silver",
+			td:    &templateData{},
+		},
+		{
+			token: "old token",
+			name:  "no name",
+			path:  "/admin/home",
+			a:     true,
+			msg:   "silver",
+			td:    nil,
+		},
+	}
+
+	var token string
+	var name string
+	var a bool
+	var msg string
+
+	for _, item := range defTest {
+
+		token = item.token
+		name = item.name
+		a = item.a
+
+		td := &templateData{}
+		var err error
+		tapp := newTestApp(t)
+		tapp.sessionManager = scs.New()
+		tapp.sessionManager.Lifetime = 24 * time.Hour
+
+		var getTestToken = func(r *http.Request) string {
+			return token
+		}
+		var getTestUser = func(table string, id int) (*broker.Person, error) {
+			return &broker.Person{
+				Name: name,
+			}, nil
+		}
+		var isTestAuthenticated = func(r *http.Request) bool {
+			return a
+		}
+		getUser = getTestUser
+		getToken = getTestToken
+		isAuth = isTestAuthenticated
+		buf := bytes.Buffer{}
+		buf.Write([]byte(msg))
+
+		tHandle := func(w http.ResponseWriter, r *http.Request) {
+			td, err = addDefaultData(td, r, tapp)
+			if err != nil {
+				t.Errorf("error in default data %v", err)
+			}
+			fmt.Fprintln(w, buf.String())
+		}
+
+		ts := newTestServer(t, tapp.sessionManager.LoadAndSave(http.HandlerFunc(tHandle)))
+		defer ts.Close()
+		statCode, _, _ := ts.get(t, item.path)
+
+		l := td.LoggedIn == item.a
+		c := td.CSRFToken == item.token
+		n := td.UserName == item.name
+		s := statCode == 200
+		success := l && c && n && s
+		if !success {
+			t.Errorf("\nFailed with the following")
+			t.Errorf("logged in: %v", td.LoggedIn)
+			t.Errorf("csrf: %s", td.CSRFToken)
+			t.Errorf("Name: %s", td.UserName)
+			t.Errorf("status code %v", statCode)
+			t.Errorf("\n")
+		}
+	}
 }
