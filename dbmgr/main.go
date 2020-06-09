@@ -3,8 +3,6 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -21,9 +19,7 @@ import (
 
 //App for inseertion of variables into functions
 type App struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
-	users    *userModel
+	users *userModel
 }
 
 func main() {
@@ -43,9 +39,7 @@ func main() {
 
 	//the function of app is dpenendency injection.
 	app := App{
-		infoLog:  getInfoLogger(os.Stderr)(),
-		errorLog: getErrorLogger(os.Stderr)(),
-		users:    &userModel{dB: db},
+		users: &userModel{dB: db},
 	}
 
 	nc1, err := nats.Connect(nats.DefaultURL)

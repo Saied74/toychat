@@ -21,7 +21,7 @@ import (
 func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -32,7 +32,7 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -46,7 +46,7 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 			app.clientError(w, http.StatusBadRequest, err)
 		}
 		Form := forms.NewForm(r.PostForm)
-		person, err := broker.AuthenticateUserR(app.table, app.role,
+		person, err := broker.AuthenticateXR(app.table, app.role,
 			Form.GetField("email"))
 		if err != nil {
 			if errors.Is(err, broker.ErrNoRecord) {
@@ -88,7 +88,7 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 func (app *App) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -102,7 +102,7 @@ func (app *App) logoutHandler(w http.ResponseWriter, r *http.Request) {
 func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -130,7 +130,7 @@ func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 			app.serverError(w, err)
 			return //note we are not returning any words so we can check for the error
 		}
-		err = broker.InsertAdminR(app.table, app.nextRole, app.td.Form.GetField("name"),
+		err = broker.InsertXR(app.table, app.nextRole, app.td.Form.GetField("name"),
 			app.td.Form.GetField("email"), string(hashedPassword))
 		if err != nil {
 			if errors.Is(err, broker.ErrDuplicateEmail) {
@@ -155,7 +155,7 @@ func (app *App) addHandler(w http.ResponseWriter, r *http.Request) {
 func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -163,7 +163,7 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 	case GET:
 		//gwt admins from the admins table with active status as false
 		people, err := broker.GetByStatusR("admins", app.nextRole, !app.td.Active)
-		app.infoLog.Printf("in activation get err %v", err)
+		centerr.InfoLog.Printf("in activation get err %v", err)
 		if err != nil {
 			if errors.Is(err, broker.ErrNoRecord) {
 				app.td.Table = &[]broker.Person{}
@@ -182,7 +182,6 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			app.td.Table = people
 		}
-		app.infoLog.Printf("in activation get %v", people)
 		app.render(w, r, table)
 
 	case POST:
@@ -201,17 +200,17 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 			for key := range r.Form {
 				if key == candidate {
 					person.Active = app.td.Active
-					app.infoLog.Println("person.Active", person.Active)
+					centerr.InfoLog.Println("person.Active", person.Active)
 					newPeople = append(newPeople, person)
 				}
 			}
 		}
 		err = broker.ActivationR("admins", app.nextRole, &newPeople)
 		if err != nil {
-			app.infoLog.Printf("Fatal Error %v", err)
+			centerr.InfoLog.Printf("Fatal Error %v", err)
 			app.serverError(w, err)
 		}
-		app.errorLog.Printf("Activation: %v", newPeople)
+		centerr.ErrorLog.Printf("Activation: %v", newPeople)
 		app.sessionManager.RenewToken(r.Context())
 		http.Redirect(w, r, app.td.Home, http.StatusSeeOther)
 	default:
@@ -224,7 +223,7 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -249,14 +248,14 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		email := app.td.Form.GetField("email")
 		pwd := app.td.Form.GetField("passwordOld")
-		app.errorLog.Printf("table: %s, role: %s, email: %s", app.table, app.role, email)
-		person, err := broker.AuthenticateUserR(app.table, app.role, email)
+		centerr.ErrorLog.Printf("table: %s, role: %s, email: %s", app.table, app.role, email)
+		person, err := broker.AuthenticateXR(app.table, app.role, email)
 		if err != nil {
 			app.serverError(w, err)
 			return
 		}
 		hashedPassword := person.HashedPassword
-		app.infoLog.Printf("hashed password: %s", hashedPassword)
+		centerr.InfoLog.Printf("hashed password: %s", hashedPassword)
 		if len(hashedPassword) != 60 {
 			app.td.Form.Errors.AddError("generic", "No such a record was found")
 			app.render(w, r, "chgPwd")
@@ -264,14 +263,14 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(pwd))
 		if err != nil {
-			app.errorLog.Printf("Bcrypt err: %v", err)
+			centerr.ErrorLog.Printf("Bcrypt err: %v", err)
 			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 				app.td.Form.Errors.AddError("generic", "Email or Password is incorrect")
-				app.errorLog.Printf("Error from bcypt match 1 %v", err)
+				centerr.ErrorLog.Printf("Error from bcypt match 1 %v", err)
 				app.render(w, r, "chgPwd")
 
 			} else {
-				app.errorLog.Printf("Error from bcypt match 2 %v", err)
+				centerr.ErrorLog.Printf("Error from bcypt match 2 %v", err)
 				app.serverError(w, err)
 
 			}
@@ -287,7 +286,7 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		//to be inserted into the database.
 		err = broker.ChgPwdR(app.table, app.role, email, string(hashedNewPassword))
 		if err != nil {
-			app.infoLog.Printf("error from change pwd: %v", err)
+			centerr.InfoLog.Printf("error from change pwd: %v", err)
 			app.td.Form.Errors.AddError("generic", "Change password fail, try again")
 			app.render(w, r, home)
 			return
@@ -309,7 +308,7 @@ func (app *App) changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 func (app *App) agentOnlineHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -336,7 +335,7 @@ func (app *App) agentOnlineHandler(w http.ResponseWriter, r *http.Request) {
 func (app *App) agentOfflineHandler(w http.ResponseWriter, r *http.Request) {
 	err := app.pickPath(w, r)
 	if err != nil {
-		app.errorLog.Printf("bad path %s", r.URL.Path)
+		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}

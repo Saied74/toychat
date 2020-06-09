@@ -9,10 +9,7 @@ import (
 )
 
 func newTestApp(t *testing.T) *App {
-	return &App{
-		infoLog:  getInfoLogger(ioutil.Discard)(),
-		errorLog: getErrorLogger(ioutil.Discard)(),
-	}
+	return &App{}
 }
 
 type testServer struct {

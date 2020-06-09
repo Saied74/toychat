@@ -98,16 +98,3 @@ func (f *FormData) MatchPattern(field string, pattern *regexp.Regexp) {
 func (f *FormData) Valid() bool {
 	return len(f.Errors) == 0
 }
-
-//AllChecks runs all of the checks at once
-// func (f *FormData) AllChecks(min, max int, passkeys ...string) bool {
-// 	f.FieldRequired(passkeys...)
-// 	f.MaxLength(passkeys[0], max)
-// 	f.MaxLength(passkeys[1], max)
-// 	f.MatchPattern(passkeys[1], EmailRX)
-// 	f.MinLength(passkeys[2], min)
-// 	if !f.Valid() {
-// 		return false
-// 	}
-// 	return true
-// }

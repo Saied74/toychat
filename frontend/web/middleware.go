@@ -9,16 +9,17 @@ import (
 
 	"github.com/justinas/nosurf"
 	"github.com/saied74/toychat/pkg/broker"
+	"github.com/saied74/toychat/pkg/centerr"
 )
 
 func (st *sT) logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		st.infoLog.Printf("%s - %s %s %s", r.RemoteAddr, r.Proto, r.Method,
+		centerr.InfoLog.Printf("%s - %s %s %s", r.RemoteAddr, r.Proto, r.Method,
 			r.URL.RequestURI())
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		end := time.Now()
-		st.infoLog.Printf("Time difference %v", end.Sub(start))
+		centerr.InfoLog.Printf("Time difference %v", end.Sub(start))
 	})
 }
 
@@ -66,7 +67,7 @@ func (st *sT) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		usr, err := st.getUserR(st.sessionManager.GetInt(r.Context(),
+		usr, err := broker.GetEUR("users", st.sessionManager.GetInt(r.Context(),
 			authenticatedUserID))
 		if errors.Is(err, broker.ErrNoRecord) || !usr.Active {
 			st.sessionManager.Remove(r.Context(), authenticatedUserID)

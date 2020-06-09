@@ -55,9 +55,15 @@ type Exchange struct {
 	//Table is the name of the table to be processed, for now "admins in all cases."
 	Table string
 	//Put is list of column names to be put in the database after the SET verb
+	//Put is only used by methods and functions that have "put" or "insert"
+	//in the Action field
 	Put []string
-	//Spec is the list of columns that come after the WhARE word
+	//Spec is the list of columns that come after the WHERE word
+	//Spec will appear both when the Action is put or get but not insert
 	Spec []string
+	//Get is the list of the fields to be returned
+	//Get is only used by methods or functions that set Action to "get"
+	Get []string
 	//See the notes on Person above.
 	People []Person
 	//The command for the far end, get,  put, or insert.
@@ -70,50 +76,45 @@ type Exchange struct {
 //Specify builds inspec on the side of the gob decoding.  It uses people data
 //and put and spec slices to build the items that need to be ither put into the
 //database or are conditions of the database entry (WHERE condition.)
-func (e *Exchange) Specify() [][]interface{} {
-	inspec := [][]interface{}{}
-	for _, person := range e.People {
-		sp := []interface{}{}
-		for _, p := range e.Put {
-			switch p {
-			case "id":
-				sp = append(sp, person.ID)
-			case "name":
-				sp = append(sp, person.Name)
-			case "email":
-				sp = append(sp, person.Email)
-			case "hashed_password":
-				sp = append(sp, person.HashedPassword)
-			case "role":
-				sp = append(sp, person.Role)
-			case "active":
-				sp = append(sp, person.Active)
-			case "online":
-				sp = append(sp, person.Online)
-			}
+func (p *Person) Specify(put, spec []string) []interface{} {
+	sp := []interface{}{}
+	for _, pu := range put {
+		switch pu {
+		case iD:
+			sp = append(sp, p.ID)
+		case Name:
+			sp = append(sp, p.Name)
+		case Email:
+			sp = append(sp, p.Email)
+		case HashedPassword:
+			sp = append(sp, p.HashedPassword)
+		case Role:
+			sp = append(sp, p.Role)
+		case Active:
+			sp = append(sp, p.Active)
+		case Online:
+			sp = append(sp, p.Online)
 		}
-		for _, s := range e.Spec {
-			switch s {
-			case "id":
-				sp = append(sp, person.ID)
-			case "name":
-				sp = append(sp, person.Name)
-			case "email":
-				sp = append(sp, person.Email)
-			case "hashed_password":
-				sp = append(sp, person.HashedPassword)
-			case "role":
-				sp = append(sp, person.Role)
-			case "active":
-				sp = append(sp, person.Active)
-			case "online":
-				sp = append(sp, person.Online)
-			}
-		}
-		inspec = append(inspec, sp)
-
 	}
-	return inspec
+	for _, s := range spec {
+		switch s {
+		case iD:
+			sp = append(sp, p.ID)
+		case Name:
+			sp = append(sp, p.Name)
+		case Email:
+			sp = append(sp, p.Email)
+		case HashedPassword:
+			sp = append(sp, p.HashedPassword)
+		case Role:
+			sp = append(sp, p.Role)
+		case Active:
+			sp = append(sp, p.Active)
+		case Online:
+			sp = append(sp, p.Online)
+		}
+	}
+	return sp
 }
 
 //ToGob encodes Exchange type data to be shipped over nats
@@ -177,11 +178,12 @@ func (e *Exchange) DecodeErr() error {
 	return fmt.Errorf("error decoder failed %d", int(e.ErrType))
 }
 
-//InsertAdminR inserts an administrator into admins table that includes a role
-func InsertAdminR(table, role, name, email, password string) error {
+//InsertXR inserts an administrator into admins table that includes a role
+//X stands for user, agent, or admin
+func InsertXR(table, role, name, email, password string) error {
 	exchange := Exchange{
 		Table: table,
-		Put:   []string{"name", "email", "hashed_password", "role"},
+		Put:   []string{"name", "email", "hashed_password", "created", "role"},
 		Spec:  []string{},
 		People: []Person{
 			Person{
@@ -202,12 +204,15 @@ func InsertAdminR(table, role, name, email, password string) error {
 	return exchange.DecodeErr()
 }
 
-//AuthenticateUserR gob encodes exchData and sends it to the dbmgr over nats
-func AuthenticateUserR(table, role, email string) (*Person, error) {
+//AuthenticateXR gob encodes exchData and sends it to the dbmgr over nats
+//X stands for user, agent, or admin
+func AuthenticateXR(table, role, email string) (*Person, error) {
 	exchange := Exchange{
 		Table: table,
 		Put:   []string{},
 		Spec:  []string{"role", "email"},
+		Get: []string{"id", "name", "email", "hashed_password", "created",
+			"role", "active", "online"},
 		People: []Person{
 			Person{Role: role, Email: email},
 		},
@@ -231,12 +236,15 @@ func AuthenticateUserR(table, role, email string) (*Person, error) {
 		length)
 }
 
-//GetUserR gob encodes exchData and sends it to the dbmgr over nats
-func GetUserR(table string, id int) (*Person, error) {
+//GetXR gob encodes exchData and sends it to the dbmgr over nats
+//X stands for user, agent, or admin
+func GetXR(table string, id int) (*Person, error) {
 	exchange := Exchange{
 		Table: table,
 		Put:   []string{},
 		Spec:  []string{"id"},
+		Get: []string{"id", "name", "email", "hashed_password", "created",
+			"role", "active", "online"},
 		People: []Person{
 			Person{ID: id},
 		},
@@ -262,6 +270,8 @@ func GetByStatusR(table, role string, status bool) (*[]Person, error) {
 		Table: table,
 		Put:   []string{},
 		Spec:  []string{"role", "active"},
+		Get: []string{"id", "name", "email", "hashed_password", "created",
+			"role", "active", "online"},
 		People: []Person{
 			Person{Active: status, Role: role},
 		},

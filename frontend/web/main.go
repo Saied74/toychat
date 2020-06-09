@@ -5,16 +5,16 @@ import (
 	"database/sql"
 	"flag"
 	"html/template"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/alexedwards/scs/mysqlstore"
 	"github.com/alexedwards/scs/v2"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/saied74/toychat/pkg/centerr"
+	"github.com/saied74/toychat/pkg/forms"
 )
 
 //so if the string is used in new packages, it remains privat for this app.
@@ -24,16 +24,16 @@ const contextKeyIsAuthenticated = contextKey("isAuthenticated")
 
 //this struct is for injecting data into the handlers and supporting methods.
 type sT struct {
-	errorLog       *log.Logger
-	infoLog        *log.Logger
+	// errorLog       *log.Logger
+	// infoLog        *log.Logger
 	cache          map[string]*template.Template
 	sessionManager *scs.SessionManager
-	users          *userModel
-	td             *templateData
+	// users          *userModel
+	td *templateData
 }
 
 type templateData struct {
-	Form      *formData
+	Form      *forms.FormData
 	UserName  string
 	LoggedIn  bool
 	Flash     string
@@ -50,25 +50,18 @@ func main() {
 	flag.Parse()
 	dbAddress := strings.Replace(*dsn, "password", *pw, 1)
 
-	//for testing, we can pass a buffer to the logger.  For productoin, a file.
-	infoLog := getInfoLogger(os.Stdout)
-	errorLog := getErrorLogger(os.Stdout)
-
 	db, err := openDB(dbAddress)
 	if err != nil {
-		errorLog().Fatal(err)
+		centerr.ErrorLog.Fatal(err)
 	}
 	defer db.Close()
 
 	st := &sT{
-		infoLog:        infoLog(),
-		errorLog:       errorLog(),
 		sessionManager: scs.New(),
-		users:          &userModel{dB: db},
 		td: &templateData{
-			Form: &formData{
+			Form: &forms.FormData{
 				Fields: url.Values{},
-				Errors: errOrs{},
+				Errors: forms.ErrOrs{},
 			},
 		},
 		cache: newTemplateCache(allTmplFiles),
@@ -77,6 +70,8 @@ func main() {
 	//at some point when different applicaitons are running on different servers
 	//the database for each applicaiton needs to be seperated.
 	st.sessionManager.Store = mysqlstore.New(db)
+	st.sessionManager.Lifetime = 72 * time.Hour
+	st.sessionManager.Cookie.Name = "sessionOne"
 
 	tlsConfig := &tls.Config{
 		PreferServerCipherSuites: true,
@@ -86,16 +81,16 @@ func main() {
 	mux := st.routes()
 	srv := &http.Server{
 		Addr:         *ipAddress,
-		ErrorLog:     st.errorLog,
+		ErrorLog:     centerr.ErrorLog,
 		Handler:      st.dynamicRoutes(mux), //see the middlware file.
 		TLSConfig:    tlsConfig,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
-	st.infoLog.Printf("Starting server on %s", *ipAddress)
+	centerr.InfoLog.Printf("Starting server on %s", *ipAddress)
 	err = srv.ListenAndServeTLS(serverCrt, serverKey)
-	st.errorLog.Fatal(err)
+	centerr.ErrorLog.Fatal(err)
 }
 
 // The openDB() function wraps sql.Open() and returns a sql.DB connection pool

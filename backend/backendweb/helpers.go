@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -16,43 +15,27 @@ import (
 	"github.com/justinas/nosurf"
 	nats "github.com/nats-io/nats.go"
 	"github.com/saied74/toychat/pkg/broker"
+	"github.com/saied74/toychat/pkg/centerr"
 	"github.com/saied74/toychat/pkg/forms"
 )
 
 var getToken = nosurf.Token
-var getUser = broker.GetUserR
+var getUser = broker.GetXR
 var isAuth = isAuthenticated
-
-//These two loggers are written so one can pass other writer opbjects to them
-//for testing (to write to a buffer) and also for logging to file at some point.
-//these loggers will have to be moved to a package file.
-func getInfoLogger(out io.Writer) func() *log.Logger {
-	infoLog := log.New(out, "INFO\t", log.Ldate|log.Ltime)
-	return func() *log.Logger {
-		return infoLog
-	}
-}
-
-func getErrorLogger(out io.Writer) func() *log.Logger {
-	errorLog := log.New(out, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
-	return func() *log.Logger {
-		return errorLog
-	}
-}
 
 //consolidated screen error reporting.  Once the chat manager application
 //is written, these html error sceen handlers need to be moved to a package file.
 // TODO: make the html error message pages nice, they are ugly.
 func (app *App) serverError(w http.ResponseWriter, err error) {
 	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
-	app.errorLog.Println(trace)
+	centerr.ErrorLog.Println(trace)
 
 	http.Error(w, http.StatusText(http.StatusInternalServerError),
 		http.StatusInternalServerError)
 }
 
 func (app *App) clientError(w http.ResponseWriter, status int, err error) {
-	app.errorLog.Printf("client error %v", err)
+	centerr.ErrorLog.Printf("client error %v", err)
 
 	http.Error(w, http.StatusText(status), status)
 }
@@ -260,12 +243,12 @@ func (app *App) chatConnection(matValue, forCM, fromCM string) []byte {
 
 	nc1, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
-		app.errorLog.Printf("in chatConnection connecting error %v", err)
+		centerr.ErrorLog.Printf("in chatConnection connecting error %v", err)
 	}
 	defer nc1.Close()
 	msg, err := nc1.Request(forCM, []byte(matValue), 2*time.Second)
 	if err != nil {
-		app.errorLog.Printf("in chatConnection %s request did not complete %v",
+		centerr.ErrorLog.Printf("in chatConnection %s request did not complete %v",
 			forCM, err)
 		return []byte{}
 	}

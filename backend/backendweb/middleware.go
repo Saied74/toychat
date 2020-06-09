@@ -10,18 +10,19 @@ import (
 
 	"github.com/justinas/nosurf"
 	"github.com/saied74/toychat/pkg/broker"
+	"github.com/saied74/toychat/pkg/centerr"
 )
 
 type plainHandler func(w http.ResponseWriter, r *http.Request)
 
 func (app *App) logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		app.infoLog.Printf("%s - %s %s %s", r.RemoteAddr, r.Proto, r.Method,
+		centerr.InfoLog.Printf("%s - %s %s %s", r.RemoteAddr, r.Proto, r.Method,
 			r.URL.RequestURI())
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		end := time.Now()
-		app.infoLog.Printf("Time difference %v", end.Sub(start))
+		centerr.InfoLog.Printf("Time difference %v", end.Sub(start))
 	})
 }
 
@@ -82,9 +83,9 @@ func (app *App) authenticate(next http.Handler) http.Handler {
 		}
 		path := strings.Split(r.URL.Path, "/")
 		if len(path) < 3 {
-			app.errorLog.Printf("bad path %s, short string", r.URL.Path)
+			centerr.ErrorLog.Printf("bad path %s, short string", r.URL.Path)
 		}
-		usr, err := broker.GetUserR(app.table, app.sessionManager.GetInt(r.Context(),
+		usr, err := broker.GetXR(app.table, app.sessionManager.GetInt(r.Context(),
 			authenticatedUserID))
 		if errors.Is(err, broker.ErrNoRecord) || !usr.Active {
 			app.sessionManager.Remove(r.Context(), authenticatedUserID)

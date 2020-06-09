@@ -102,6 +102,7 @@ if [ $1 = all ]
 
 killall nats-server
 killall ui
+killall ux
 killall matMat
 killall chat
 killall dbmgr
@@ -115,6 +116,10 @@ cd $GOPATH/src/toychat/frontend/web
 rm ui
 go build -o ui .
 ./ui -pw $2 &
+cd $GOPATH/src/toychat/backend/backendweb
+rm ux
+go build -o ux .
+./ux -pw $2 &
 cd $GOPATH/src/toychat/mat
 rm matMat
 go build -o matMat .

@@ -5,10 +5,8 @@ import (
 	"database/sql"
 	"flag"
 	"html/template"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -16,6 +14,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/saied74/toychat/pkg/broker"
+	"github.com/saied74/toychat/pkg/centerr"
 	"github.com/saied74/toychat/pkg/forms"
 )
 
@@ -31,8 +30,6 @@ type UserModel struct {
 
 //App struct is for injecting data into the handlers and supporting methods.
 type App struct {
-	errorLog       *log.Logger
-	infoLog        *log.Logger
 	cache          map[string]*template.Template
 	sessionManager *scs.SessionManager
 	users          *UserModel
@@ -69,28 +66,22 @@ type templateData struct {
 func main() {
 	var err error
 	//the pw flag is mandatory.
-	ipAddress := flag.String("ipa", ":4000", "server ip address")
+	ipAddress := flag.String("ipa", ":8000", "server ip address")
 	dsn := flag.String("dsn", "toy:password@/toychat?parseTime=true",
 		"MySQL data source name")
 	pw := flag.String("pw", "password", "database password is always required")
 	flag.Parse()
 	dbAddress := strings.Replace(*dsn, "password", *pw, 1)
 
-	//for testing, we can pass a buffer to the logger.  For productoin, a file.
-	infoLog := getInfoLogger(os.Stdout)
-	errorLog := getErrorLogger(os.Stdout)
-
 	db, err := openDB(dbAddress)
 	if err != nil {
-		errorLog().Fatal(err)
+		centerr.ErrorLog.Fatal(err)
 	}
 	defer db.Close()
 
 	// var allTmplFiles tmDataer
 
 	app := &App{
-		infoLog:        infoLog(),
-		errorLog:       errorLog(),
 		sessionManager: scs.New(),
 		users:          &UserModel{DB: db},
 		td: &templateData{
@@ -104,6 +95,8 @@ func main() {
 	//at some point when different applicaitons are running on different servers
 	//the database for each applicaiton needs to be seperated.
 	app.sessionManager.Store = mysqlstore.New(db)
+	app.sessionManager.Lifetime = 72 * time.Hour
+	app.sessionManager.Cookie.Name = "sessionTwo"
 
 	tlsConfig := &tls.Config{
 		PreferServerCipherSuites: true,
@@ -113,16 +106,16 @@ func main() {
 	mux := app.routes()
 	srv := &http.Server{
 		Addr:         *ipAddress,
-		ErrorLog:     app.errorLog,
+		ErrorLog:     centerr.ErrorLog,
 		Handler:      app.dynamicRoutes(mux), //see the middlware file.
 		TLSConfig:    tlsConfig,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
-	app.infoLog.Printf("Starting server on %s", *ipAddress)
+	centerr.InfoLog.Printf("Starting server on %s", *ipAddress)
 	err = srv.ListenAndServeTLS(serverCrt, serverKey)
-	app.errorLog.Fatal(err)
+	centerr.ErrorLog.Fatal(err)
 }
 
 // The openDB() function wraps sql.Open() and returns a sql.DB connection pool

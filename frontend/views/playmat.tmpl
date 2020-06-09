@@ -24,7 +24,7 @@ $("button").click(function(){
     $(newP).attr("id", nextID);
     // alert("One:\noldID"+oldID+"\nnextID"+nextID); //for debugging
     oldID = "#"+oldID;
-    $(oldID).append(newP);
+    $(oldID).prepend(newP);
 
     //create another paragraph and set its ID
     anotherP = document.createElement("p");
@@ -35,7 +35,7 @@ $("button").click(function(){
     $(anotherP).attr("id", nextID)
     oldID = "#"+oldID
     // alert("Two:\noldID"+oldID+"\nnextID"+nextID); //for debugging
-    $(oldID).append(anotherP);
+    $(oldID).prepend(anotherP);
     // alert(data + "\nStatus: " + status+"\noldID"+oldID+"\nnextID"+nextID);
     $("#newIDx").val("") //clear the message window
     nextID = "";

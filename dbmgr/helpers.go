@@ -3,29 +3,14 @@ package main
 import (
 	"database/sql"
 	"errors"
-	"io"
 	"log"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
 	nats "github.com/nats-io/nats.go"
 	"github.com/saied74/toychat/pkg/broker"
+	"github.com/saied74/toychat/pkg/centerr"
 )
-
-//these loggers will have to be moved to a package file.
-func getInfoLogger(out io.Writer) func() *log.Logger {
-	infoLog := log.New(out, "INFO\t", log.Ldate|log.Ltime)
-	return func() *log.Logger {
-		return infoLog
-	}
-}
-
-func getErrorLogger(out io.Writer) func() *log.Logger {
-	errorLog := log.New(out, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
-	return func() *log.Logger {
-		return errorLog
-	}
-}
 
 //The interface to the dbmgr is through broker.Exchange object.  There are
 //three possible actions, put, get, and insert.  Once the gob data is decoded,
@@ -70,10 +55,11 @@ var allCol = []string{"id", "name", "email", "hashed_password", "created",
 	"role", "active", "online"}
 
 func (m *userModel) insert(e *broker.Exchange) error {
-	stmt := `INSERT INTO ` + e.Table +
-		` (name, email, hashed_password, created, role) VALUES(?, ?, ?, UTC_TIMESTAMP(), ?)`
+	stmt := buildInsertStmt(e.Table, e.Put)
+	centerr.InfoLog.Printf("Insert Statement: %s", stmt)
 	for _, p := range e.People {
-		_, err := m.dB.Exec(stmt, p.Name, p.Email, p.HashedPassword, p.Role)
+		c := p.BuildInsert(e.Put)
+		_, err := m.dB.Exec(stmt, c...)
 		if err != nil {
 			var mySQLError *mysql.MySQLError
 			if errors.As(err, &mySQLError) {
@@ -89,37 +75,39 @@ func (m *userModel) insert(e *broker.Exchange) error {
 }
 
 func (m *userModel) get(e *broker.Exchange) error {
-	cond := e.Specify()
-	stmt := buildGetStmt(e.Table, e.Spec, allCol)
-	e.People = []broker.Person{}
-	for _, c := range cond {
+	stmt := buildGetStmt(e.Table, e.Get, e.Spec)
+	newPeople := []broker.Person{}
+	for _, p := range e.People {
+		c := p.GetSpec(e.Spec)
+		person := broker.Person{}
+		g := person.GetItems(e.Get)
 		rows, err := m.dB.Query(stmt, c...)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var p = &broker.Person{}
-			err := rows.Scan(&p.ID, &p.Name, &p.Email, &p.HashedPassword, &p.Created,
-				&p.Role, &p.Active, &p.Online)
+			err := rows.Scan(g...)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return broker.ErrNoRecord
 				}
 				return err
 			}
-			e.People = append(e.People, *p)
+			person.GetBack(e.Get, g)
+			newPeople = append(newPeople, person)
 		}
 	}
+	e.People = newPeople
 	return nil
 }
 
 func (m *userModel) put(e *broker.Exchange) error {
-	cond := e.Specify()
 	stmt := buildPutStmt(e.Table, e.Put, e.Spec)
 	log.Printf("put statement: %s", stmt)
-	for _, c := range cond {
-		log.Printf("put condition: %v", cond)
+	for _, p := range e.People {
+		c := p.Specify(e.Put, e.Spec)
+		log.Printf("put condition: %v", c)
 		_, err := m.dB.Exec(stmt, c...)
 		if err != nil {
 			return err
@@ -128,13 +116,31 @@ func (m *userModel) put(e *broker.Exchange) error {
 	return nil
 }
 
-func buildGetStmt(table string, give, get []string) string {
+func buildInsertStmt(table string, put []string) string {
+	stmt := "INSERT INTO " + table + " ("
+	putFields := strings.Join(put[:], ", ")
+	stmt += putFields
+	stmt += ") VALUES("
+	for _, item := range put {
+		switch item {
+		case "created":
+			stmt += "UTC_TIMESTAMP(), "
+		default:
+			stmt += "?, "
+		}
+	}
+	stmt = strings.TrimSuffix(stmt, ", ")
+	stmt += ")"
+	return stmt
+}
+
+func buildGetStmt(table string, get, spec []string) string {
 	stmt := "SELECT "
 	getFields := strings.Join(get[:], ", ")
 	stmt += getFields
 	stmt += " FROM " + table + " WHERE "
-	giveFields := strings.Join(give[:], " = ? AND ")
-	stmt += giveFields
+	specFields := strings.Join(spec[:], " = ? AND ")
+	stmt += specFields
 	stmt += " = ?"
 	return stmt
 }
