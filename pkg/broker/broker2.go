@@ -3,8 +3,14 @@
 package broker
 
 import (
+	"bytes"
+	"encoding/gob"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"github.com/saied74/toychat/pkg/centerr"
 )
 
 const (
@@ -16,6 +22,12 @@ const (
 	Role           = "role"
 	Active         = "active"
 	Online         = "online"
+	AgentID        = "agent_id"
+	DialogID       = "dialog_id"
+	Message        = "message"
+	Started        = "started"
+	Ended          = "ended"
+	Open           = "open"
 )
 
 //BuildInsert uses the "put" slice pattern to build an empty interface
@@ -156,84 +168,164 @@ func (p *Person) GetBack(get []string, g []interface{}) error {
 	return nil
 }
 
-//InsertEUR is for inserting end users (EU) from the front end
-func InsertEUR(table, name, email, password string) error {
-	exchange := Exchange{
-		Table: table,
-		Put:   []string{Name, Email, HashedPassword, Created},
-		Spec:  []string{},
-		People: []Person{
-			Person{
-				Name:           name,
-				Email:          email,
-				HashedPassword: password,
-			},
-		},
-		Action: "insert",
+//Specify builds inspec on the side of the gob decoding.  It uses people data
+//and put and spec slices to build the items that need to be ither put into the
+//database or are conditions of the database entry (WHERE condition.)
+func (p *Person) Specify(put, spec []string) []interface{} {
+	sp := []interface{}{}
+	for _, pu := range put {
+		switch pu {
+		case iD:
+			sp = append(sp, p.ID)
+		case Name:
+			sp = append(sp, p.Name)
+		case Email:
+			sp = append(sp, p.Email)
+		case HashedPassword:
+			sp = append(sp, p.HashedPassword)
+		case Role:
+			sp = append(sp, p.Role)
+		case Active:
+			sp = append(sp, p.Active)
+		case Online:
+			sp = append(sp, p.Online)
+		}
 	}
-	sendData, err := exchange.ToGob()
+	for _, s := range spec {
+		switch s {
+		case iD:
+			sp = append(sp, p.ID)
+		case Name:
+			sp = append(sp, p.Name)
+		case Email:
+			sp = append(sp, p.Email)
+		case HashedPassword:
+			sp = append(sp, p.HashedPassword)
+		case Role:
+			sp = append(sp, p.Role)
+		case Active:
+			sp = append(sp, p.Active)
+		case Online:
+			sp = append(sp, p.Online)
+		}
+	}
+	return sp
+}
+
+//repeated code at the end of each send - recieve function.
+func (e *Exchange) runExchange() error {
+	gob.Register(time.Time{})
+	gob.Register(People{})
+	gob.Register(Dialogs{})
+	sendData, err := e.ToGob()
 	if err != nil {
 		return err
 	}
-	answer := chatConnection(string(sendData), "forDB")
-	exchange.FromGob(answer)
-	return exchange.DecodeErr()
+	answer := ChatConnection(sendData, "forDB")
+	e.FromGob(answer)
+	return e.DecodeErr()
 }
 
-//AuthenticateEUR gob encodes exchData and sends it to the dbmgr over nats
-//EU stands for end user
-func AuthenticateEUR(table, email string) (*Person, error) {
-	exchange := Exchange{
-		Table: table,
-		Put:   []string{},
-		Spec:  []string{Email},
-		Get:   []string{iD, Name, Email, HashedPassword, Created, Active},
-		People: []Person{
-			Person{Email: email},
-		},
-		Action: "get",
+func (e *Exchange) runGetExchange(people People, getSpec []string) error {
+	for _, p := range people {
+		c := p.GetSpec(getSpec)
+		e.Spec = append(e.Spec, c)
 	}
-	sendData, err := exchange.ToGob()
+	err := e.runExchange()
 	if err != nil {
-		return &Person{}, err
+		return err
 	}
-	answer := chatConnection(string(sendData), "forDB")
-	exchange.FromGob(answer)
-	err = exchange.DecodeErr()
-	if err != nil {
-		return &Person{}, err
-	}
-	length := len(exchange.People)
-	if length == 1 {
-		return &exchange.People[0], nil
-	}
-	return &Person{}, fmt.Errorf("AuthenticateUserR brought back %d records",
-		length)
+	return e.DecodeErr()
 }
 
-//GetEUR gets the user infromation for the database (EU for end user)
-func GetEUR(table string, id int) (*Person, error) {
-	exchange := Exchange{
-		Table: table,
-		Put:   []string{},
-		Spec:  []string{iD},
-		Get: []string{iD, Name, Email, HashedPassword, Created,
-			Active, Online},
-		People: []Person{
-			Person{ID: id},
-		},
-		Action: "get",
-	}
-	sendData, err := exchange.ToGob()
+//ToGob encodes Exchange type data to be shipped over nats
+func (e *Exchange) ToGob() ([]byte, error) {
+	// start := time.Now()
+	b := &bytes.Buffer{}
+	enc := gob.NewEncoder(b)
+	err := enc.Encode(*e)
 	if err != nil {
-		return &Person{}, err
+		return []byte{}, fmt.Errorf("failed gob Encode %v", err)
 	}
-	answer := chatConnection(string(sendData), "forDB")
-	exchange.FromGob(answer)
-	length := len(exchange.People)
-	if length == 1 {
-		return &exchange.People[0], nil
+	// end := time.Now()
+	// centerr.InfoLog.Printf("togob: time difference %v", end.Sub(start))
+	return b.Bytes(), nil
+}
+
+//FromGob decides Exchange typed shipped over nats
+func (e *Exchange) FromGob(g []byte) error {
+	// start := time.Now()
+	gob.Register(time.Time{})
+	gob.Register(People{})
+	gob.Register(Dialogs{})
+	b := &bytes.Buffer{}
+	b.Write(g)
+	dec := gob.NewDecoder(b)
+	err := dec.Decode(e)
+	if err != nil {
+		return fmt.Errorf("failed screen gob decode %v", err)
 	}
-	return &Person{}, fmt.Errorf("GetUserR brought back %d",
-		length)
+	// end := time.Now()
+	// centerr.InfoLog.Printf("fromgob: time difference %v", end.Sub(start))
+	return nil
+}
+
+//EncodeErr encodes err for transmission over gob encoded medium.
+//errors don't gob encode.
+func (e *Exchange) EncodeErr(err error) {
+	switch {
+	case err == nil:
+		e.ErrType = NoErr
+	case errors.Is(err, ErrNoRecord):
+		e.ErrType = NoRecord
+	case errors.Is(err, ErrInvalidCredentials):
+		e.ErrType = InvalidCreds
+	case errors.Is(err, ErrDuplicateEmail):
+		e.ErrType = DuplicateMail
+	default:
+		e.ErrType = ErrZero
+	}
+	e.Err = fmt.Sprintf("%v", err)
+}
+
+//DecodeErr decodes error shipped over gob encoded medium.
+func (e *Exchange) DecodeErr() error {
+	switch e.ErrType {
+	case NoErr:
+		return nil
+	case ErrZero:
+		if e.Err == "" {
+			return ErrNoRecord
+		}
+		return fmt.Errorf(e.Err)
+	case NoRecord:
+		return ErrNoRecord
+	case InvalidCreds:
+		return ErrInvalidCredentials
+	case DuplicateMail:
+		return ErrDuplicateEmail
+	}
+	return fmt.Errorf("error decoder failed %d", int(e.ErrType))
+}
+
+//ChatConnection sends string data to the far end, waits for the response and returns.
+//for chat and mat, the data is string.  For dbmgr, the data is a struct.
+//which is gob encoded before it is sent.  Gob encoder is in the broker pkg.
+// TODO: find a way to build a nats connecton pool like the MySQL connection
+//pool to speed up transactions.
+func ChatConnection(sendMsg []byte, target string) []byte {
+	var err error
+
+	nc1, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		centerr.ErrorLog.Printf("in chatConnection connecting error %v", err)
+	}
+	defer nc1.Close()
+	msg, err := nc1.Request(target, sendMsg, 2*time.Second)
+	if err != nil {
+		centerr.ErrorLog.Printf("in chatConnection %s request did not complete %v",
+			target, err)
+		return []byte{}
+	}
+	return msg.Data
 }

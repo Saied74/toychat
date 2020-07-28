@@ -1,23 +1,109 @@
 
 {{ define "playpage"}}
 <script>
+
 $(document).ready (function() {
+
+  start = Date.now();
+
+  var activeDialog = {
+    name: "First One Last One",
+    email: "Email: first@me.com",
+    time: start,
+    msg: "",
+    id: 10,
+    dialogID: 810,
+    agentID: 217,
+    err: "",
+  };
+  var sideA = {
+    name: "First Two Last Two",
+    email: "Email: two@me.com",
+    time: start,
+    msg: "hi kitty kat",
+    id: 12,
+    dialogID: 812,
+    agentID: 219,
+    err: "",
+  };
+  var sideB = {
+    name: "First Three Last Three",
+    email: "Email: three@me.com",
+    time: start,
+    msg: "don't call me kitty kat you dog",
+    id: 14,
+    dialogID: 814,
+    agentID: 221,
+    err: "",
+  };
+  var temp = {
+    name: "First Three Last Three",
+    email: "Email: three@me.com",
+    time: Date.now(),
+    msg: "don't call me kitty kat you dog",
+    id: 14,
+    dialogID: 814,
+    agentID: 221,
+    err: "",
+  };
+// const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+
+// setTimeout(populate, 60000)
+
+  function populate(item, scr) {
+    document.getElementById(item+"_1").innerHTML = scr.name;
+    document.getElementById(item+"_2").innerHTML = scr.email;
+    document.getElementById(item+"_3").innerHTML = Math.round((-scr.time + Date.now())/60000);
+    if (item != "active") {
+      document.getElementById(item+"_4").innerHTML = scr.msg;
+    };
+  };
+
+  function copyDialog(from, to){
+to.name = from.name;
+to.email = from.email;
+to.time = from.time;
+to.msg = from.msg;
+to.id = from.id;
+to.dialogID = from.dialogID;
+to.agentID = from.agentID;
+to.err = from.err;
+};
+
 
 counter = makecounter()
 
-$("button").click(function(){
-
-  Value = $("#newIDx").val();
-  $.post("/play",
+$("#loadButton").click(function(){
+  $.post("/agent/chat",
   {
-    value: Value,
-    csrf_token: {{.CSRFToken}}
+    csrf_token: {{.CSRFToken}},
+  	name:     "",
+  	email:    "",
+  	msg:      "",
+  	id:       0,
+  	dialogID: 0,
+  	agentID:  0,
+  	errType:  0,
+  	err:      "",
+  	action:   "hello",
   },
+
+  // populate("active", activeDialog);
+  // populate("sideA", sideA);
+  // populate("sideB", sideB);
+// });
+
+  // Value = $("#newIDx").val();
+  // $.post("/play",
+  // {
+  //   value: Value,
+  //   // csrf_token: {{.CSRFToken}}
+  // },
   function(data, status){
     //create a new paragraph and set its ID
     //this is for the input
     var newP = document.createElement("p");
-    newP.innerHTML = Value;
+    newP.innerHTML = "TEST"; //Value;
     count = counter();
     oldID = "newID" + String(count - 1); //point to the back link
     nextID = "newID" + count;
@@ -44,6 +130,22 @@ $("button").click(function(){
 
 });
 
+$("#sideA").click(function(){
+  copyDialog(sideA, temp)
+  copyDialog(activeDialog, sideA)
+  copyDialog(temp, activeDialog)
+  populate("active", activeDialog)
+  populate("sideA", sideA)
+});
+
+$("#sideB").click(function(){
+  copyDialog(sideB, temp)
+  copyDialog(activeDialog, sideB)
+  copyDialog(temp, activeDialog)
+  populate("active", activeDialog)
+  populate("sideB", sideB)
+});
+
 });
 
 function makecounter(){
@@ -52,6 +154,59 @@ function makecounter(){
     return n++
   };
 };
+
+
+// $(document).ready (function() {
+//
+// counter = makecounter()
+//
+// $("button").click(function(){
+//
+//   Value = $("#newIDx").val();
+//   $.post("/play",
+//   {
+//     value: Value,
+//     csrf_token: {{.CSRFToken}}
+//   },
+//   function(data, status){
+//     //create a new paragraph and set its ID
+//     //this is for the input
+//     var newP = document.createElement("p");
+//     newP.innerHTML = Value;
+//     count = counter();
+//     oldID = "newID" + String(count - 1); //point to the back link
+//     nextID = "newID" + count;
+//     $(newP).attr("id", nextID);
+//     // alert("One:\noldID"+oldID+"\nnextID"+nextID); //for debugging
+//     oldID = "#"+oldID;
+//     $(oldID).append(newP);
+//
+//     //create another paragraph and set its ID
+//     anotherP = document.createElement("p");
+//     anotherP.innerHTML = data;
+//     count = counter();
+//     oldID = "newID" + String(count - 1); //point to the back link
+//     nextID = "newID" + count;
+//     $(anotherP).attr("id", nextID)
+//     oldID = "#"+oldID
+//     // alert("Two:\noldID"+oldID+"\nnextID"+nextID); //for debugging
+//     $(oldID).append(anotherP);
+//     // alert(data + "\nStatus: " + status+"\noldID"+oldID+"\nnextID"+nextID);
+//     $("#newIDx").val("") //clear the message window
+//     nextID = "";
+//     oldID = "";
+//   });
+//
+// });
+//
+// });
+//
+// function makecounter(){
+//   var n = 1;
+//   return function(){
+//     return n++
+//   };
+// };
 </script>
 
 {{ end }}

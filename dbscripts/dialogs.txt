@@ -1,0 +1,9 @@
+CREATE TABLE dialogs (
+dialog_id    INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+user_id      INTEGER NOT NULL,
+agent_id     INTEGER NOT NULL,
+started      DATETIME NOT NULL DEFAULT '2000-01-01 00:00:01',
+ended        DATETIME NOT NULL DEFAULT '2000-01-01 00:00:01',
+CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users (id),
+CONSTRAINT fk_agent_id FOREIGN KEY (agent_id) REFERENCES admins (id)
+);

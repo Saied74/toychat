@@ -25,6 +25,12 @@ then
   exit 0
 fi
 
+# if [ $1 == 'hub' ] && [ $# -lt 2 ]
+# then
+#   echo 'too few arguments for invoking dbmgr'
+#   exit 0
+# fi
+
 if [ $1 == 'all' ] && [ $# -lt 2 ]
 then
   echo 'too few arguments for invoking all'
@@ -88,6 +94,17 @@ then
   exit 0
 fi
 
+# if [ $1 == 'hub' ]
+# then
+#   cd $GOPATH/src/toychat/msghub
+#   killall hub
+#   rm hub
+#   go build -o hub .
+#   ./hub -pw $2 &
+#   cd $GOPATH/src/toychat
+#   exit 0
+# fi
+
 if [ $1 == 'nats' ]
 then
   killall nats-server
@@ -106,6 +123,7 @@ killall ux
 killall matMat
 killall chat
 killall dbmgr
+killall hub
 
 cd $GOPATH/bin
 ./nats-server &
@@ -132,6 +150,10 @@ cd $GOPATH/src/toychat/dbmgr
 rm dbmgr
 go build -o dbmgr .
 ./dbmgr -pw $2 &
+# cd $GOPATH/src/toychat/msghub
+# rm hub
+# go build -o hub .
+# ./hub -pw $2 &
 cd $GOPATH/src/toychat
 exit 0
 fi
@@ -144,4 +166,5 @@ then
   killall matMat
   killall chat
   killall dbmgr
+  # killall hub
 fi

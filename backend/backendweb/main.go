@@ -46,21 +46,34 @@ type templateData struct {
 	Login     string //login link (e.g. /super/login or /admin/login)
 	Logout    string //same with logout.
 	ChgPwd    string
-	Msg       string //login, add admin or add agent message.
-	SideLink1 string //addAgent or addAdmin
-	SideLink2 string //activateAgent or activateAdmin
-	SideLink3 string //deactivateAgent or deactivateAdmin
-	Super     bool   //role super = true
-	Admin     bool   //role admin = true
-	Agent     bool   // role agent= true
-	Active    bool   //active or not
-	Online    bool   //Agent online or offline
-	Table     *[]broker.Person
+	Msg       string         //login, add admin or add agent message.
+	SideLink1 string         //addAgent or addAdmin
+	SideLink2 string         //activateAgent or activateAdmin
+	SideLink3 string         //deactivateAgent or deactivateAdmin
+	Super     bool           //role super = true
+	Admin     bool           //role admin = true
+	Agent     bool           // role agent= true
+	Active    bool           //active or not
+	Online    bool           //Agent online or offline
+	Table     *broker.People //[]broker.Person
 	Form      *forms.FormData
 	UserName  string
 	LoggedIn  bool
 	Flash     string
 	CSRFToken string
+}
+
+func (t *templateData) Length() int {
+	return 1
+}
+
+//ReturnFirst is to handle indexing into TableProxy concrte type People
+func (t *templateData) ReturnFirst() *broker.Person {
+	return &broker.Person{}
+}
+
+func (t *templateData) setPeople(p *broker.People) {
+	t.Table = p
 }
 
 func main() {
@@ -154,5 +167,6 @@ func (app *App) routes() *http.ServeMux {
 	mux.HandleFunc(agentLogout, app.logoutHandler)
 	mux.HandleFunc(agentOnline, app.requireAuthentication(app.agentOnlineHandler))
 	mux.HandleFunc(agentOffline, app.requireAuthentication(app.agentOfflineHandler))
+	mux.HandleFunc("/agent/chat", app.requireAuthentication(app.agentChatHandler))
 	return mux
 }

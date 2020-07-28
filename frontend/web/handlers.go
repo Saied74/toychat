@@ -25,7 +25,6 @@ func (st *sT) homeHandler(w http.ResponseWriter, r *http.Request) {
 //using the golang standard library, so need to check for correct path and method.
 func (st *sT) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/login" {
-		centerr.ErrorLog.Printf("bad path %s", r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
@@ -174,17 +173,61 @@ func (st *sT) matHandler(w http.ResponseWriter, r *http.Request) {
 
 //This is the Ajax end point for the chat.
 func (st *sT) playHandler(w http.ResponseWriter, r *http.Request) {
+	var dialogID, agentID int
+	var msg string
 	err := r.ParseForm() //parse request, handle error
 	if err != nil {
 		centerr.ErrorLog.Println(err)
 	}
-	value, ok := r.Form["value"]
+	message, ok := r.Form["value"]
 	if ok {
-		//it sends the input to the chat application over the nats connection
-		//and synchroously waits for the response to be delivered to its mailbox.
-		chatValue := st.chatConnection(value[0], "forChat", "fromChat")
-		w.Write(chatValue)
+		msg = message[0]
+
+		//<------------------ Get User ID --------------------------->
+		id := st.sessionManager.GetInt(r.Context(), authenticatedUserID)
+
+		//<----------------- Get Dialog Record ----------------------->
+		dialog, err := broker.GetDialog("dialogs", id) //check to see if ongoing dialog
+		if err != nil {
+
+			//<---------- If no dialog record, get agent ---------------->
+			if errors.Is(err, broker.ErrNoRecord) { //&& dialog.AgentID != 0 {
+				agentID, err2 := broker.SelectAgent() // TODO: no record found is not cared for
+				if err2 != nil {
+					st.serverError(w, err2)
+					return
+				}
+				// <------------ with agentID and user ID, make dialog ----------->
+				err2 = broker.MakeDialog("dialogs", id, agentID)
+				if err2 != nil {
+					st.serverError(w, err2)
+					return
+				}
+				dialog, err := broker.GetDialog("dialogs", id)
+				dialogID = dialog.DialogID
+				if err != nil {
+					st.serverError(w, err)
+				}
+			} else {
+				st.serverError(w, err)
+				return
+			}
+		} else {
+			dialogID = dialog.DialogID
+			agentID = dialog.AgentID
+		}
+		err = broker.EnterMsg("messages", dialogID, msg)
+		if err != nil {
+			st.serverError(w, err)
+		}
+		reply, err := broker.MessageAgent(agentID, id, msg)
+		if err != nil {
+			st.serverError(w, err)
+		}
+		w.Write([]byte(reply))
+		return
 	}
+	return
 }
 
 //============================= Play (mat) ====================================

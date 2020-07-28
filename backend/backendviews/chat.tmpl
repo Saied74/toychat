@@ -1,37 +1,52 @@
 {{ define "chatpage" }}
 
-<div class="col-sm-10">
-  <div class="row">
-    <div class="col-sm-8">
+
       <!-- two spacer columns -->
+    <div class="row">
+      <div class="col-sm-8">
+        <!-- two spacer columns -->
 
-      <!-- Grid column -->
-      <p>Hi, what can I do for you?</p>
-      <div class="form-group basic-textarea">
+        <!-- Grid column -->
+        <p class="h4">Active Dialog</p>
+          <ul class="list-group" id="active">
+          <!-- <li class="list-group-item active">Acive Dialog</li> -->
+          <li class="list-group-item" id="active_1"></li>
+          <li class="list-group-item" id="active_2"></li>
+          <li class="list-group-item" id="active_3"></li>
+        </ul>
+        <br><br>
+        <div class="form-group basic-textarea">
+            <textarea class="form-control pl-2 my-0" id="newIDx" rows="1" placeholder="Type your message here..."></textarea>
+        </div>
+        <button type="button" class="btn btn-primary">Send</button>
+        <button type="button" id="loadButton" class="btn btn-primary">Load</button>
 
-          <textarea class="form-control pl-2 my-0" id="newIDx" rows="3" placeholder="Type your message here..."></textarea>
-      </div>
-      <button type="button" class="btn btn-info btn-rounded btn-sm waves-effect waves-light float-right">Send</button>
-
-  <p id="newID0"></p>
-</div>
-<div class="col-sm-4">
-  <!-- two spacer columns -->
-
-  <!-- Grid column -->
-  <p>Hi, what can I do for you?</p>
-  <div class="form-group basic-textarea">
-
-      <textarea class="form-control pl-2 my-0" id="newIDx" rows="3" placeholder="Type your message here..."></textarea>
+    <p id="newID0"></p>
   </div>
-  <button type="button" class="btn btn-info btn-rounded btn-sm waves-effect waves-light float-right">Send</button>
+  <div class="col-sm-4">
+    <!-- two spacer columns -->
 
-<p id="newID0"></p>
-</div>
+    <!-- Grid column -->
+    <p class="h4" >Waiting Dialogs</p>
+    <ul class="list-group">
+    <li class="list-group-item active" id="sideA">Waiting user A</li>
+    <li class="list-group-item" id="sideA_1"></li>
+    <li class="list-group-item"  id="sideA_2"></li>
+    <li class="list-group-item"  id="sideA_3"></li>
+    <li class="list-group-item" id="sideA_4"></li>
+  </ul>
+  <br><br>
 
-
-</dif>
-    </div>
+  <ul class="list-group">
+  <li class="list-group-item active" id="sideB">Waiting user B</li>
+  <li class="list-group-item" id="sideB_1"></li>
+  <li class="list-group-item" id="sideB_2"></li>
+  <li class="list-group-item" id="sideB_3"></li>
+  <li class="list-group-item" id="sideB_4"></li>
+  </ul>
+  <p id="newID0"></p>
+  </div>
+  </div>
 
 
 {{ end }}

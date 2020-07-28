@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"net/http"
@@ -41,6 +42,7 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 		app.render(w, r, login)
 		return
 	case POST:
+		gob.Register(broker.People{})
 		err := r.ParseForm()
 		if err != nil {
 			app.clientError(w, http.StatusBadRequest, err)
@@ -166,21 +168,23 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 		centerr.InfoLog.Printf("in activation get err %v", err)
 		if err != nil {
 			if errors.Is(err, broker.ErrNoRecord) {
-				app.td.Table = &[]broker.Person{}
+				app.td.Table = &broker.People{}
 			} else {
 				app.serverError(w, err)
 				return
 			}
 		}
-		if len(*people) == 1 {
-			person := *people
-			if len(person[0].HashedPassword) != 60 {
-				app.td.Table = &[]broker.Person{}
+		// persons := *people
+		if len(people) == 1 { // len(*people) == 1 {
+			// person := *people
+			if len(people[0].HashedPassword) != 60 {
+				app.td.Table = &broker.People{}
 			} else {
-				app.td.Table = people
+				app.td.setPeople(&people)
 			}
 		} else {
-			app.td.Table = people
+			app.td.setPeople(&people)
+			// app.td.setTable(people)
 		}
 		app.render(w, r, table)
 
@@ -194,8 +198,8 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 			centerr.ErrorLog.Printf("Fatal Error %v", err)
 			app.serverError(w, err)
 		}
-		newPeople := []broker.Person{}
-		for i, person := range *people { //Short because that is how the api responds
+		newPeople := broker.People{}
+		for i, person := range people { //Short because that is how the api responds
 			candidate := "stateCheck" + strconv.Itoa(i)
 			for key := range r.Form {
 				if key == candidate {
@@ -210,7 +214,7 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 			centerr.InfoLog.Printf("Fatal Error %v", err)
 			app.serverError(w, err)
 		}
-		centerr.ErrorLog.Printf("Activation: %v", newPeople)
+		// centerr.ErrorLog.Printf("Activation: %v", newPeople)
 		app.sessionManager.RenewToken(r.Context())
 		http.Redirect(w, r, app.td.Home, http.StatusSeeOther)
 	default:
@@ -323,7 +327,7 @@ func (app *App) agentOnlineHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			app.serverError(w, err)
 		}
-		app.render(w, r, home)
+		app.render(w, r, chat)
 		return
 	default:
 		w.WriteHeader(http.StatusNotImplemented)
@@ -356,4 +360,18 @@ func (app *App) agentOfflineHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotImplemented)
 		w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
 	}
+}
+
+//============================== Agent onffline ================================
+func (app *App) agentChatHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm() //parse request, handle error
+	if err != nil {
+		centerr.ErrorLog.Println(err)
+	}
+	value, ok := r.Form["action"]
+	if !ok {
+		centerr.ErrorLog.Println(err)
+	}
+	centerr.InfoLog.Printf("got answer from the browser %s", value)
+
 }

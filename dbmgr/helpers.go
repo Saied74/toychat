@@ -2,8 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"encoding/gob"
 	"errors"
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
@@ -12,12 +13,8 @@ import (
 	"github.com/saied74/toychat/pkg/centerr"
 )
 
-//The interface to the dbmgr is through broker.Exchange object.  There are
-//three possible actions, put, get, and insert.  Once the gob data is decoded,
-//the corresponding function is called and the result is gob encoded and
-//returned through the nats mailbox.
-
 func (app *App) processDBRequests(msg *nats.Msg, conn *nats.Conn) {
+	gob.Register(broker.People{})
 	var err error
 	var exchange = &broker.Exchange{}
 	err = exchange.FromGob(msg.Data)
@@ -35,6 +32,12 @@ func (app *App) processDBRequests(msg *nats.Msg, conn *nats.Conn) {
 		case "insert":
 			err = app.users.insert(exchange)
 			exchange.EncodeErr(err)
+		case "agent":
+			err = app.users.getAgent(exchange)
+			exchange.EncodeErr(err)
+		case "getDialog":
+			err = app.users.getDialog(exchange)
+			exchange.EncodeErr(err)
 		default:
 			exchange.EncodeErr(err)
 		}
@@ -51,14 +54,11 @@ type userModel struct {
 	dB *sql.DB
 }
 
-var allCol = []string{"id", "name", "email", "hashed_password", "created",
-	"role", "active", "online"}
-
 func (m *userModel) insert(e *broker.Exchange) error {
 	stmt := buildInsertStmt(e.Table, e.Put)
-	centerr.InfoLog.Printf("Insert Statement: %s", stmt)
-	for _, p := range e.People {
-		c := p.BuildInsert(e.Put)
+	centerr.InfoLog.Printf("Insert statement %s", stmt)
+	centerr.InfoLog.Printf("Insert Spec %v", e.Spec)
+	for _, c := range e.Spec {
 		_, err := m.dB.Exec(stmt, c...)
 		if err != nil {
 			var mySQLError *mysql.MySQLError
@@ -75,18 +75,57 @@ func (m *userModel) insert(e *broker.Exchange) error {
 }
 
 func (m *userModel) get(e *broker.Exchange) error {
-	stmt := buildGetStmt(e.Table, e.Get, e.Spec)
-	newPeople := []broker.Person{}
-	for _, p := range e.People {
-		c := p.GetSpec(e.Spec)
-		person := broker.Person{}
-		g := person.GetItems(e.Get)
+	var iter bool
+	newPeople := broker.People{}
+	stmt := buildGetStmt(e.Table, e.Get, e.SpecList)
+	for _, c := range e.Spec {
 		rows, err := m.dB.Query(stmt, c...)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
+		iter = false
 		for rows.Next() {
+			iter = true
+			person := broker.Person{}
+			g := person.GetItems(e.Get)
+			err = rows.Scan(g...)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return broker.ErrNoRecord
+				}
+				return err
+			}
+			err = person.GetBack(e.Get, g)
+			if err != nil {
+				return fmt.Errorf("GetBack Error: %v", err)
+			}
+			newPeople = append(newPeople, person)
+		}
+	}
+	if iter {
+		e.People = newPeople
+		return nil
+	}
+	e.People = broker.People{}
+	return broker.ErrNoRecord
+}
+
+func (m *userModel) getDialog(e *broker.Exchange) error {
+	var iter bool
+	newPeople := broker.Dialogs{}
+	stmt := buildGetStmt(e.Table, e.Get, e.SpecList)
+	for _, c := range e.Spec {
+		rows, err := m.dB.Query(stmt, c...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		iter = false
+		for rows.Next() {
+			iter = true
+			userMsg := broker.Dialog{}
+			g := userMsg.GetItems(e.Get)
 			err := rows.Scan(g...)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
@@ -94,25 +133,64 @@ func (m *userModel) get(e *broker.Exchange) error {
 				}
 				return err
 			}
-			person.GetBack(e.Get, g)
-			newPeople = append(newPeople, person)
+			err = userMsg.GetBack(e.Get, g)
+			if err != nil {
+				return fmt.Errorf("GetBack Error: %v", err)
+			}
+			newPeople = append(newPeople, userMsg)
 		}
 	}
-	e.People = newPeople
-	return nil
+	if iter {
+		e.People = newPeople
+		return nil
+	}
+	e.People = broker.Dialogs{}
+	return broker.ErrNoRecord
 }
 
 func (m *userModel) put(e *broker.Exchange) error {
-	stmt := buildPutStmt(e.Table, e.Put, e.Spec)
-	log.Printf("put statement: %s", stmt)
-	for _, p := range e.People {
-		c := p.Specify(e.Put, e.Spec)
-		log.Printf("put condition: %v", c)
+	stmt := buildPutStmt(e.Table, e.Put, e.SpecList)
+	for _, c := range e.Spec {
 		_, err := m.dB.Exec(stmt, c...)
 		if err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+//getAgent is coded longhand without any abstraction since it is only one of its
+//kind for now.  We will see what happens as the application develops.
+func (m *userModel) getAgent(e *broker.Exchange) error {
+	userMsgs := broker.Dialogs{}
+	stmt := "SELECT id, dialog  FROM admins WHERE role='agent' AND dialog < 3 ORDER BY dialog"
+	tx, err := m.dB.Begin()
+	if err != nil {
+		return err
+	}
+	rows := tx.QueryRow(stmt)
+	userMsg := broker.Dialog{}
+	err = rows.Scan(&userMsg.AgentID, &userMsg.Dialog)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, sql.ErrNoRows) {
+			return broker.ErrNoRecord
+		}
+		return err
+	}
+	userMsg.Dialog++
+	stmt = "UPDATE admins SET dialog = ? WHERE id = ?"
+	_, err = m.dB.Exec(stmt, &userMsg.Dialog, &userMsg.AgentID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	userMsgs = append(userMsgs, userMsg)
+	e.People = userMsgs
 	return nil
 }
 
@@ -124,6 +202,8 @@ func buildInsertStmt(table string, put []string) string {
 	for _, item := range put {
 		switch item {
 		case "created":
+			stmt += "UTC_TIMESTAMP(), "
+		case "started":
 			stmt += "UTC_TIMESTAMP(), "
 		default:
 			stmt += "?, "

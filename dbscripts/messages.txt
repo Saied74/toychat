@@ -1,0 +1,7 @@
+CREATE TABLE messages (
+message_id    INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+dialog_id     INTEGER NOT NULL,
+created       DATETIME NOT NULL DEFAULT '2000-01-01 00:00:01',
+message       VARCHAR(280) NOT NULL DEFAULT '',
+CONSTRAINT    fk_dialog_id FOREIGN KEY (dialog_id) REFERENCES dialogs (dialog_id)
+);

@@ -48,7 +48,8 @@
     </div>
   </nav>
 
-</br></br><br>
+</br></br>
+<div class="container-fluid">
     <!-- Grid row -->
 <div class="row">
       <!-- two spacer columns -->
@@ -67,7 +68,7 @@
     {{ end }}
 
 {{ if .Agent }}
-<p class="h4">{{.UserName}} You are {{if .Online}}Online{{end}}{{if not .Online}}Offline{{end}}</p> 
+<p class="h4">{{.UserName}} You are {{if .Online}}Online{{end}}{{if not .Online}}Offline{{end}}</p>
 {{ if not .Online }}<p><a href="{{.SideLink1}}">Go Online</a></p>{{ end }}
 {{if .Online }}<p><a href="{{.SideLink2}}">Go Offline</a></p> {{ end }}
 {{ end }}
@@ -83,12 +84,13 @@
   </div>
   <div class="col-sm-1"></div>
 </div>
+</div>
 
       <!-- Grid column -->
 
 <p id="newID0"></p>
 
-<hr>
+
 </body>
 
 {{ block "playpage" .}}  {{ end }}
