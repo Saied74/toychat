@@ -2,7 +2,6 @@ package broker
 
 import (
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -27,78 +26,31 @@ var (
 	ErrDuplicateEmail = errors.New("models: duplicate email")
 )
 
-// TableProxy is to unify access to various database tables
-type TableProxy interface {
-	Length() int
-	PickZero() (*Person, error)
-	Pick() (*Dialog, error)
-	AddToPeople(Person) People
-	AddToDialog(Dialog) Dialogs
-}
-
-// TableEntry permits Person and Dialog to be processing in the same way.
-type TableEntry interface {
-	GetItems([]string) []interface{}
-	GetBack([]string, []interface{}) error
-}
-
-//TableProxy is also of the type TableProxy
-// type TableProxy []TableEntry
-
-//Person is a direct map of the database columns in exact the same order.
+//TableRow is a direct map of the database columns in exact the same order.
 //data is extracted from the database into each of these fields.
 //All "get" actions populate all fields.  For put actions, the fileds
 //that need to be "put" must be populated.  The object Person is always
 //used  in a slice as []People.
-type Person struct {
+type TableRow struct {
 	ID             int
+	DialogID       int
+	AgentID        int
+	MessageID      int
+	Dialog         int //number of dialogs an agent is handling
 	Name           string
 	Email          string
 	Password       string //once the new API is implemented, this field comes out.
 	HashedPassword string
 	Created        time.Time
+	Ended          time.Time
 	Role           string
 	Active         bool
 	Online         bool
+	Msg            string
 }
 
-//People is a slice so multiple rows can be inserted and extracted
-type People []Person
-
-// Length is defined to handle indexing of TableProxy concrte type People
-func (p People) Length() int {
-	return len(p)
-}
-
-//PickZero accomodates the fact that you can't index an interface type
-func (p People) PickZero() (*Person, error) {
-	if p.Length() == 1 {
-		return &p[0], nil
-	}
-	return &Person{}, fmt.Errorf("AuthenticateUserR brought back %d records",
-		p.Length())
-}
-
-//Pick is a dummy method to satisfy TableProxy contract
-func (p People) Pick() (*Dialog, error) {
-	return nil, nil
-}
-
-// ReturnFirst is to handle indexing into TableProxy concrte type People
-func (p People) ReturnFirst() Person {
-	return p[0]
-}
-
-//AddToPeople provides the append functon for the interface
-func (p People) AddToPeople(person Person) People {
-	p = append(p, person)
-	return p
-}
-
-//AddToDialog is a dummy method to satisfy the interface
-func (p People) AddToDialog(dialog Dialog) Dialogs {
-	return Dialogs{}
-}
+//TableRows is a slice so multiple rows can be inserted and extracted
+type TableRows []TableRow
 
 //Exchange is the new API interface to the dbmgr.  It is handed to the
 //database get and put methods as is to be processed.
@@ -120,7 +72,7 @@ type Exchange struct {
 	//Get is only used by methods or functions that set Action to "get"
 	Get []string
 	//See the notes on Person above.
-	People TableProxy
+	Tables TableRows
 	//Person is the extration of the single People
 	//The command for the far end, get,  put, or insert.
 	Action string
@@ -132,8 +84,8 @@ type Exchange struct {
 //InsertXR inserts an administrator into admins table that includes a role
 //X stands for user, agent, or admin
 func InsertXR(table, role, name, email, password string) error {
-	people := People{
-		Person{
+	people := TableRows{
+		TableRow{
 			Name:           name,
 			Email:          email,
 			HashedPassword: password,
@@ -143,7 +95,7 @@ func InsertXR(table, role, name, email, password string) error {
 	exchange := Exchange{
 		Table:  table,
 		Put:    []string{"name", "email", "hashed_password", "created", "role"},
-		People: people,
+		Tables: people,
 		Action: "insert",
 	}
 	for _, p := range people {
@@ -155,9 +107,9 @@ func InsertXR(table, role, name, email, password string) error {
 
 //AuthenticateXR gob encodes exchData and sends it to the dbmgr over nats
 //X stands for user, agent, or admin
-func AuthenticateXR(table, role, email string) (*Person, error) {
-	people := People{
-		Person{Role: role, Email: email},
+func AuthenticateXR(table, role, email string) (*TableRow, error) {
+	people := TableRows{
+		TableRow{Role: role, Email: email},
 	}
 	exchange := Exchange{
 		Table:    table,
@@ -165,70 +117,70 @@ func AuthenticateXR(table, role, email string) (*Person, error) {
 		SpecList: []string{"role", "email"},
 		Get: []string{"id", "name", "email", "hashed_password", "created",
 			"role", "active", "online"},
-		People: people,
+		Tables: people,
 		Action: "get",
 	}
 	err := exchange.runGetExchange(people, exchange.SpecList)
 	if err != nil {
-		return &Person{}, err
+		return &TableRow{}, err
 	}
-	person, err := exchange.People.PickZero()
-	if err != nil {
-		return person, err
-	}
-	return person, nil
+	person := exchange.Tables[0]
+	// if err != nil {
+	// 	return person, err
+	// }
+	return &person, nil
 }
 
 //GetXR gob encodes exchData and sends it to the dbmgr over nats
 //X stands for user, agent, or admin
-func GetXR(table string, id int) (*Person, error) {
-	people := People{Person{ID: id}}
+func GetXR(table string, id int) (*TableRow, error) {
+	people := TableRows{TableRow{ID: id}}
 	exchange := Exchange{
 		Table:    table,
 		Put:      []string{},
 		SpecList: []string{"id"},
 		Get: []string{"id", "name", "email", "hashed_password", "created",
 			"role", "active", "online"},
-		People: people,
+		Tables: people,
 		Action: "get",
 	}
 	err := exchange.runGetExchange(people, exchange.SpecList)
 	if err != nil {
-		return &Person{}, err
+		return &TableRow{}, err
 	}
-	person, err := exchange.People.PickZero()
+	person := exchange.Tables[0]
 	if err != nil {
-		return person, err
+		return &person, err
 	}
-	return person, nil
+	return &person, nil
 }
 
 //GetByStatusR gets from the specified table a string agents by status (eg. active)
-func GetByStatusR(table, role string, status bool) (People, error) {
-	people := People{Person{Active: status, Role: role}}
+func GetByStatusR(table, role string, status bool) (TableRows, error) {
+	people := TableRows{TableRow{Active: status, Role: role}}
 	exchange := Exchange{
 		Table:    table,
 		Put:      []string{},
 		SpecList: []string{"role", "active"},
 		Get: []string{"id", "name", "email", "hashed_password", "created",
 			"role", "active", "online"},
-		People: people,
+		Tables: people,
 		Action: "get",
 	}
 	err := exchange.runGetExchange(people, exchange.SpecList)
 	if err != nil {
 		return nil, err
 	}
-	return exchange.People.(People), exchange.DecodeErr()
+	return exchange.Tables, exchange.DecodeErr()
 }
 
 //ActivationR activates or deactivates agent or admin as requested.
-func ActivationR(table, role string, people *People) error {
+func ActivationR(table, role string, people *TableRows) error {
 	exchange := Exchange{
 		Table:    table,
 		Put:      []string{"active"},
 		SpecList: []string{"id", "role"},
-		People:   *people,
+		Tables:   *people,
 		Action:   "put",
 	}
 	for _, p := range *people {
@@ -240,12 +192,12 @@ func ActivationR(table, role string, people *People) error {
 
 //ChgPwdR sends a request to the dbmgr to change the pawword for the specified email
 func ChgPwdR(table, role, email, password string) error {
-	people := People{Person{HashedPassword: password, Email: email, Role: role}}
+	people := TableRows{TableRow{HashedPassword: password, Email: email, Role: role}}
 	exchange := Exchange{
 		Table:    table,
 		Put:      []string{"hashed_password"},
 		SpecList: []string{"id", "role"},
-		People:   people,
+		Tables:   people,
 		Action:   "put",
 	}
 	for _, p := range people {
@@ -257,12 +209,12 @@ func ChgPwdR(table, role, email, password string) error {
 
 //PutLine moves the agent offline and online
 func PutLine(table, role string, id int, online bool) error {
-	people := People{Person{Online: online, ID: id, Role: role}}
+	people := TableRows{TableRow{Online: online, ID: id, Role: role}}
 	exchange := Exchange{
 		Table:    table,
 		Put:      []string{"online"},
 		SpecList: []string{"id", "role"},
-		People:   people,
+		Tables:   people,
 		Action:   "put",
 	}
 	for _, p := range people {
@@ -274,8 +226,8 @@ func PutLine(table, role string, id int, online bool) error {
 
 //InsertEUR is for inserting end users (EU) from the front end
 func InsertEUR(table, name, email, password string) error {
-	people := People{
-		Person{
+	people := TableRows{
+		TableRow{
 			Name:           name,
 			Email:          email,
 			HashedPassword: password,
@@ -284,7 +236,7 @@ func InsertEUR(table, name, email, password string) error {
 	exchange := Exchange{
 		Table:  table,
 		Put:    []string{Name, Email, HashedPassword, Created},
-		People: people,
+		Tables: people,
 		Action: "insert",
 	}
 	for _, p := range people {
@@ -296,46 +248,46 @@ func InsertEUR(table, name, email, password string) error {
 
 //AuthenticateEUR gob encodes exchData and sends it to the dbmgr over nats
 //EU stands for end user
-func AuthenticateEUR(table, email string) (*Person, error) {
-	people := People{Person{Email: email}}
+func AuthenticateEUR(table, email string) (*TableRow, error) {
+	people := TableRows{TableRow{Email: email}}
 	exchange := Exchange{
 		Table:    table,
 		Put:      []string{},
 		SpecList: []string{"email"},
 		Get:      []string{iD, Name, Email, HashedPassword, Created, Active},
-		People:   people,
+		Tables:   people,
 		Action:   "get",
 	}
 	err := exchange.runGetExchange(people, exchange.SpecList)
 	if err != nil {
-		return &Person{}, err
+		return &TableRow{}, err
 	}
-	person, err := exchange.People.PickZero()
-	if err != nil {
-		return person, err
-	}
-	return person, nil
+	person := exchange.Tables[0] //.PickZero()
+	// if err != nil {
+	// 	return person, err
+	// }
+	return &person, nil
 }
 
 //GetEUR gets the user infromation for the database (EU for end user)
-func GetEUR(table string, id int) (*Person, error) {
-	people := People{Person{ID: id}}
+func GetEUR(table string, id int) (*TableRow, error) {
+	people := TableRows{TableRow{ID: id}}
 	exchange := Exchange{
 		Table:    table,
 		Put:      []string{},
 		SpecList: []string{"id"},
 		Get: []string{iD, Name, Email, HashedPassword, Created,
 			Active, Online},
-		People: people,
+		Tables: people,
 		Action: "get",
 	}
 	err := exchange.runGetExchange(people, exchange.SpecList)
 	if err != nil {
-		return &Person{}, err
+		return &TableRow{}, err
 	}
-	person, err := exchange.People.PickZero()
-	if err != nil {
-		return person, err
-	}
-	return person, nil
+	person := exchange.Tables[0] //.PickZero()
+	// if err != nil {
+	// 	return person, err
+	// }
+	return &person, nil
 }

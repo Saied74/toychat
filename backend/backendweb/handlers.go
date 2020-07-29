@@ -42,7 +42,7 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 		app.render(w, r, login)
 		return
 	case POST:
-		gob.Register(broker.People{})
+		gob.Register(broker.TableRow{})
 		err := r.ParseForm()
 		if err != nil {
 			app.clientError(w, http.StatusBadRequest, err)
@@ -168,7 +168,7 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 		centerr.InfoLog.Printf("in activation get err %v", err)
 		if err != nil {
 			if errors.Is(err, broker.ErrNoRecord) {
-				app.td.Table = &broker.People{}
+				app.td.Table = &broker.TableRows{}
 			} else {
 				app.serverError(w, err)
 				return
@@ -178,7 +178,7 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 		if len(people) == 1 { // len(*people) == 1 {
 			// person := *people
 			if len(people[0].HashedPassword) != 60 {
-				app.td.Table = &broker.People{}
+				app.td.Table = &broker.TableRows{}
 			} else {
 				app.td.setPeople(&people)
 			}
@@ -198,7 +198,7 @@ func (app *App) activationHandler(w http.ResponseWriter, r *http.Request) {
 			centerr.ErrorLog.Printf("Fatal Error %v", err)
 			app.serverError(w, err)
 		}
-		newPeople := broker.People{}
+		newPeople := broker.TableRows{}
 		for i, person := range people { //Short because that is how the api responds
 			candidate := "stateCheck" + strconv.Itoa(i)
 			for key := range r.Form {

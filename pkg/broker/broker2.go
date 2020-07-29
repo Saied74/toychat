@@ -32,12 +32,20 @@ const (
 
 //BuildInsert uses the "put" slice pattern to build an empty interface
 //slice to be used with the INSERT statement
-func (p *Person) BuildInsert(put []string) []interface{} {
+func (p *TableRow) BuildInsert(put []string) []interface{} {
 	var c = []interface{}{}
 	for _, sp := range put {
 		switch sp {
 		case iD:
 			c = append(c, p.ID)
+		case "user_id":
+			c = append(c, p.ID)
+		case "dialog_id":
+			c = append(c, p.DialogID)
+		case "agent_id":
+			c = append(c, p.AgentID)
+		case "message_id":
+			c = append(c, p.MessageID)
 		case Name:
 			c = append(c, p.Name)
 		case Email:
@@ -46,24 +54,38 @@ func (p *Person) BuildInsert(put []string) []interface{} {
 			c = append(c, p.HashedPassword)
 		case Created:
 			continue
+		case "started":
+			continue
+		case "ended":
+			continue
+		case Role:
+			c = append(c, p.Role)
 		case Active:
 			c = append(c, p.Active)
 		case Online:
 			c = append(c, p.Online)
-		case Role:
-			c = append(c, p.Role)
+		case "message":
+			c = append(c, p.Msg)
 		}
 	}
 	return c
 }
 
 //GetSpec builds the specifications to provide to the WHERE clause of SQL
-func (p *Person) GetSpec(spec []string) []interface{} {
+func (p *TableRow) GetSpec(spec []string) []interface{} {
 	var g = []interface{}{}
 	for _, sp := range spec {
 		switch sp {
 		case iD:
 			g = append(g, p.ID)
+		case "user_id":
+			g = append(g, p.ID)
+		case "dialog_id":
+			g = append(g, p.DialogID)
+		case "agent_id":
+			g = append(g, p.AgentID)
+		case "message_id":
+			g = append(g, p.MessageID)
 		case Name:
 			g = append(g, p.Name)
 		case Email:
@@ -72,12 +94,18 @@ func (p *Person) GetSpec(spec []string) []interface{} {
 			g = append(g, p.HashedPassword)
 		case Created:
 			g = append(g, p.Created)
+		case "started":
+			g = append(g, p.Created)
+		case "ended":
+			g = append(g, p.Ended)
+		case Role:
+			g = append(g, p.Role)
 		case Active:
 			g = append(g, p.Active)
 		case Online:
 			g = append(g, p.Online)
-		case Role:
-			g = append(g, p.Role)
+		case "message":
+			g = append(g, p.Msg)
 		}
 	}
 	return g
@@ -85,12 +113,20 @@ func (p *Person) GetSpec(spec []string) []interface{} {
 
 //GetItems uses the get string to generate an interface to be passed to the
 //sql.Execute statement for the INSERT sql command.
-func (p *Person) GetItems(get []string) []interface{} {
+func (p *TableRow) GetItems(get []string) []interface{} {
 	var g = []interface{}{}
 	for _, sp := range get {
 		switch sp {
 		case iD:
 			g = append(g, &p.ID)
+		case "user_id":
+			g = append(g, &p.ID)
+		case "dialog_id":
+			g = append(g, &p.DialogID)
+		case "agent_id":
+			g = append(g, &p.AgentID)
+		case "message_id":
+			g = append(g, &p.MessageID)
 		case Name:
 			g = append(g, &p.Name)
 		case Email:
@@ -99,12 +135,18 @@ func (p *Person) GetItems(get []string) []interface{} {
 			g = append(g, &p.HashedPassword)
 		case Created:
 			g = append(g, &p.Created)
+		case "started":
+			g = append(g, &p.Created)
+		case "ended":
+			g = append(g, &p.Ended)
 		case Role:
 			g = append(g, &p.Role)
 		case Active:
 			g = append(g, &p.Active)
 		case Online:
 			g = append(g, &p.Online)
+		case "message":
+			g = append(g, &p.Msg)
 		}
 	}
 	return g
@@ -112,7 +154,7 @@ func (p *Person) GetItems(get []string) []interface{} {
 
 //GetBack reverses the get item and takes the interface items and gets the
 //underlying data back.
-func (p *Person) GetBack(get []string, g []interface{}) error {
+func (p *TableRow) GetBack(get []string, g []interface{}) error {
 	for i, sp := range get {
 		switch sp {
 		case iD:
@@ -121,6 +163,30 @@ func (p *Person) GetBack(get []string, g []interface{}) error {
 				return fmt.Errorf("ID (int) type assertion failed")
 			}
 			p.ID = *xID
+		case "user_id":
+			xID, ok := g[i].(*int)
+			if !ok {
+				return fmt.Errorf("ID (int) type assertion failed")
+			}
+			p.ID = *xID
+		case "dialog_id":
+			xDialogID, ok := g[i].(*int)
+			if !ok {
+				return fmt.Errorf("DialogID (int) type assertion failed")
+			}
+			p.DialogID = *xDialogID
+		case "agent_id":
+			xAgentID, ok := g[i].(*int)
+			if !ok {
+				return fmt.Errorf("AgentID (int) type assertion failed")
+			}
+			p.AgentID = *xAgentID
+		case "message_id":
+			xMessageID, ok := g[i].(*int)
+			if !ok {
+				return fmt.Errorf("MessageID (int) type assertion failed")
+			}
+			p.MessageID = *xMessageID
 		case Name:
 			xName, ok := g[i].(*string)
 			if !ok {
@@ -145,6 +211,18 @@ func (p *Person) GetBack(get []string, g []interface{}) error {
 				return fmt.Errorf("Created (time.Time) type assertion failed")
 			}
 			p.Created = *xCreated
+		case "started":
+			xCreated, ok := g[i].(*time.Time)
+			if !ok {
+				return fmt.Errorf("Created (time.Time) type assertion failed")
+			}
+			p.Created = *xCreated
+		case "ended":
+			xEnded, ok := g[i].(*time.Time)
+			if !ok {
+				return fmt.Errorf("Ended (time.Time) type assertion failed")
+			}
+			p.Ended = *xEnded
 		case Role:
 			xRole, ok := g[i].(*string)
 			if !ok {
@@ -163,6 +241,12 @@ func (p *Person) GetBack(get []string, g []interface{}) error {
 				return fmt.Errorf("Online (bool) type assertion failed")
 			}
 			p.Online = *xOnline
+		case "message":
+			xMsg, ok := g[i].(*string)
+			if !ok {
+				return fmt.Errorf("Created (time.Time) type assertion failed")
+			}
+			p.Msg = *xMsg
 		}
 	}
 	return nil
@@ -171,12 +255,20 @@ func (p *Person) GetBack(get []string, g []interface{}) error {
 //Specify builds inspec on the side of the gob decoding.  It uses people data
 //and put and spec slices to build the items that need to be ither put into the
 //database or are conditions of the database entry (WHERE condition.)
-func (p *Person) Specify(put, spec []string) []interface{} {
+func (p *TableRow) Specify(put, spec []string) []interface{} {
 	sp := []interface{}{}
 	for _, pu := range put {
 		switch pu {
 		case iD:
 			sp = append(sp, p.ID)
+		case "user_id":
+			sp = append(sp, p.ID)
+		case "dialog_id":
+			sp = append(sp, p.DialogID)
+		case "agent_id":
+			sp = append(sp, p.AgentID)
+		case "message_id":
+			sp = append(sp, p.MessageID)
 		case Name:
 			sp = append(sp, p.Name)
 		case Email:
@@ -189,12 +281,22 @@ func (p *Person) Specify(put, spec []string) []interface{} {
 			sp = append(sp, p.Active)
 		case Online:
 			sp = append(sp, p.Online)
+		case "message":
+			sp = append(sp, p.Msg)
 		}
 	}
 	for _, s := range spec {
 		switch s {
 		case iD:
 			sp = append(sp, p.ID)
+		case "user_id":
+			sp = append(sp, p.ID)
+		case "dialog_id":
+			sp = append(sp, p.DialogID)
+		case "agent_id":
+			sp = append(sp, p.AgentID)
+		case "message_id":
+			sp = append(sp, p.MessageID)
 		case Name:
 			sp = append(sp, p.Name)
 		case Email:
@@ -207,6 +309,8 @@ func (p *Person) Specify(put, spec []string) []interface{} {
 			sp = append(sp, p.Active)
 		case Online:
 			sp = append(sp, p.Online)
+		case "message":
+			sp = append(sp, p.Msg)
 		}
 	}
 	return sp
@@ -215,8 +319,8 @@ func (p *Person) Specify(put, spec []string) []interface{} {
 //repeated code at the end of each send - recieve function.
 func (e *Exchange) runExchange() error {
 	gob.Register(time.Time{})
-	gob.Register(People{})
-	gob.Register(Dialogs{})
+	gob.Register(TableRows{})
+	// gob.Register(Dialogs{})
 	sendData, err := e.ToGob()
 	if err != nil {
 		return err
@@ -226,7 +330,7 @@ func (e *Exchange) runExchange() error {
 	return e.DecodeErr()
 }
 
-func (e *Exchange) runGetExchange(people People, getSpec []string) error {
+func (e *Exchange) runGetExchange(people TableRows, getSpec []string) error {
 	for _, p := range people {
 		c := p.GetSpec(getSpec)
 		e.Spec = append(e.Spec, c)
@@ -256,8 +360,8 @@ func (e *Exchange) ToGob() ([]byte, error) {
 func (e *Exchange) FromGob(g []byte) error {
 	// start := time.Now()
 	gob.Register(time.Time{})
-	gob.Register(People{})
-	gob.Register(Dialogs{})
+	gob.Register(TableRows{})
+	// gob.Register(Dialogs{})
 	b := &bytes.Buffer{}
 	b.Write(g)
 	dec := gob.NewDecoder(b)

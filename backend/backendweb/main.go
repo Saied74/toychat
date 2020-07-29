@@ -46,16 +46,16 @@ type templateData struct {
 	Login     string //login link (e.g. /super/login or /admin/login)
 	Logout    string //same with logout.
 	ChgPwd    string
-	Msg       string         //login, add admin or add agent message.
-	SideLink1 string         //addAgent or addAdmin
-	SideLink2 string         //activateAgent or activateAdmin
-	SideLink3 string         //deactivateAgent or deactivateAdmin
-	Super     bool           //role super = true
-	Admin     bool           //role admin = true
-	Agent     bool           // role agent= true
-	Active    bool           //active or not
-	Online    bool           //Agent online or offline
-	Table     *broker.People //[]broker.Person
+	Msg       string            //login, add admin or add agent message.
+	SideLink1 string            //addAgent or addAdmin
+	SideLink2 string            //activateAgent or activateAdmin
+	SideLink3 string            //deactivateAgent or deactivateAdmin
+	Super     bool              //role super = true
+	Admin     bool              //role admin = true
+	Agent     bool              // role agent= true
+	Active    bool              //active or not
+	Online    bool              //Agent online or offline
+	Table     *broker.TableRows //[]broker.Person
 	Form      *forms.FormData
 	UserName  string
 	LoggedIn  bool
@@ -68,11 +68,11 @@ func (t *templateData) Length() int {
 }
 
 //ReturnFirst is to handle indexing into TableProxy concrte type People
-func (t *templateData) ReturnFirst() *broker.Person {
-	return &broker.Person{}
+func (t *templateData) ReturnFirst() *broker.TableRow {
+	return &broker.TableRow{}
 }
 
-func (t *templateData) setPeople(p *broker.People) {
+func (t *templateData) setPeople(p *broker.TableRows) {
 	t.Table = p
 }
 

@@ -340,8 +340,8 @@ func TestAddDefaultData(t *testing.T) {
 		var getTestToken = func(r *http.Request) string {
 			return token
 		}
-		var getTestUser = func(table string, id int) (*broker.Person, error) {
-			return &broker.Person{
+		var getTestUser = func(table string, id int) (*broker.TableRow, error) {
+			return &broker.TableRow{
 				Name: name,
 			}, nil
 		}
